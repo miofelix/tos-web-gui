@@ -16,6 +16,7 @@ venv/
 
 # 运行时数据 / 临时文件
 /data/
+/.devdata/
 /tmp/
 
 # tosutil 二进制由用户自备，不入库
