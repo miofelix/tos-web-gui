@@ -8,11 +8,12 @@ tosutil 子进程封装。
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 # tosutil 在镜像内位于 /usr/local/bin/tosutil；本地开发时若已加入 PATH 也能直接调用。
 TOSUTIL_BIN = os.environ.get("TOSUTIL_BIN", "tosutil")
@@ -101,9 +102,135 @@ def list_buckets() -> dict:
 
 
 def list_path(path: str) -> dict:
-    """列出某个 tos:// 路径下的对象与子目录。"""
+    """列出某个 tos:// 路径下的对象与子目录（原始递归输出，用于 raw 视图）。"""
     validate_tos_path(path)
     return run_tosutil(["ls", path])
+
+
+def list_dir(path: str) -> dict:
+    """非递归列出当前一层 (`tosutil ls -d`)，给文件浏览器用。"""
+    validate_tos_path(path)
+    normalized = path if path.endswith("/") else path + "/"
+    return run_tosutil(["ls", "-d", normalized])
+
+
+# ---------------------------------------------------------------------------
+# 输出解析：把 tosutil ls 的纯文本拆成结构化条目
+# ---------------------------------------------------------------------------
+
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_TIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
+_TZ_RE = re.compile(r"^[+-]\d{4}$")
+
+
+def parse_listing(text: str, base_path: str) -> list[dict[str, Any]]:
+    """
+    解析 `tosutil ls -d <base>` 的输出。
+
+    每行的格式形如：
+        2024-01-15 10:30:45 +0800   1024   <etag>   STANDARD   tos://bucket/dir/file.txt
+        <空白...>                                                tos://bucket/dir/subdir/
+
+    解析策略：
+    - 找到行内首个以 `tos://` 开头的 token，作为 URL
+    - URL 必须以 base_path 开头，且只看本层（不含中间斜杠的相对名）
+    - URL 以 `/` 结尾视为子目录；否则视为文件
+    - 文件尝试从 URL 前的 token 里抽取「size」（首个纯数字）和「mtime」(YYYY-MM-DD HH:MM:SS [±TZ])
+    - 含有 `tos://` 之外内容的总计/统计行会被自动忽略
+    """
+    base = base_path if base_path.endswith("/") else base_path + "/"
+    entries: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for raw_line in text.splitlines():
+        if not raw_line.strip():
+            continue
+        tokens = raw_line.split()
+
+        url = None
+        url_idx = -1
+        for i, tok in enumerate(tokens):
+            if tok.startswith("tos://"):
+                url = tok
+                url_idx = i
+                break
+        if url is None:
+            continue
+
+        # 跳过列出当前目录自身的占位行
+        if url == base or url.rstrip("/") == base.rstrip("/"):
+            continue
+        if not url.startswith(base):
+            continue
+
+        rel = url[len(base):]
+        if not rel:
+            continue
+
+        is_dir = url.endswith("/")
+        name = rel.rstrip("/")
+
+        # 本层只接受没有更深层级的条目，避免 -d 偶发返回更深路径时混进来
+        if "/" in name:
+            continue
+        if name in seen:
+            continue
+        seen.add(name)
+
+        size: int | None = None
+        mtime: str | None = None
+        if not is_dir and url_idx > 0:
+            prefix = tokens[:url_idx]
+            for tok in prefix:
+                if tok.isdigit():
+                    size = int(tok)
+                    break
+            for i, tok in enumerate(prefix):
+                if (
+                    _DATE_RE.match(tok)
+                    and i + 1 < len(prefix)
+                    and _TIME_RE.match(prefix[i + 1])
+                ):
+                    mtime = f"{tok} {prefix[i + 1]}"
+                    if i + 2 < len(prefix) and _TZ_RE.match(prefix[i + 2]):
+                        mtime = f"{mtime} {prefix[i + 2]}"
+                    break
+
+        entries.append({
+            "name": name,
+            "path": url,
+            "is_dir": is_dir,
+            "size": size,
+            "mtime": mtime,
+        })
+
+    entries.sort(key=lambda e: (not e["is_dir"], e["name"].lower()))
+    return entries
+
+
+def parse_bucket_list(text: str) -> list[dict[str, Any]]:
+    """解析 `tosutil ls`（不带路径）输出，得到 bucket 列表。"""
+    entries: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        for tok in line.split():
+            if tok.startswith("tos://"):
+                bucket = tok[len("tos://"):].strip("/")
+                if bucket and "/" not in bucket and bucket not in seen:
+                    seen.add(bucket)
+                    entries.append({
+                        "name": bucket,
+                        "path": f"tos://{bucket}/",
+                        "is_dir": True,
+                        "size": None,
+                        "mtime": None,
+                    })
+                break
+    entries.sort(key=lambda e: e["name"].lower())
+    return entries
 
 
 def upload_file(local: str, remote: str) -> dict:
@@ -153,6 +280,9 @@ __all__ = [
     "run_tosutil",
     "list_buckets",
     "list_path",
+    "list_dir",
+    "parse_listing",
+    "parse_bucket_list",
     "upload_file",
     "download_file",
     "delete_path",

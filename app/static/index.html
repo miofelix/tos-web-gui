@@ -11,151 +11,368 @@
       --bg: #f6f8fa;
       --card: #ffffff;
       --border: #d0d7de;
+      --border-soft: #eaeef2;
       --accent: #0969da;
+      --accent-bg: #ddf4ff;
       --danger: #cf222e;
+      --danger-bg: #ffebe9;
       --ok: #1a7f37;
+      --row-hover: #f6f8fa;
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
       color: var(--fg);
       background: var(--bg);
-      padding: 24px;
+      display: flex;
+      flex-direction: column;
     }
-    h1 { margin: 0 0 16px; font-size: 20px; }
-    h2 { margin: 24px 0 8px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 16px;
+    header {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
     .row {
       display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
       align-items: center;
-      margin-bottom: 8px;
+      gap: 8px;
+      flex-wrap: wrap;
     }
-    .row:last-child { margin-bottom: 0; }
-    label { font-size: 13px; color: var(--muted); }
-    input[type=text] {
-      flex: 1 1 320px;
-      min-width: 240px;
+    .grow { flex: 1; min-width: 240px; }
+    h1 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: .02em;
+    }
+    h1 .v {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 400;
+      margin-left: 6px;
+    }
+    input[type=text], input[type=file] {
       padding: 6px 10px;
       font-size: 13px;
       border: 1px solid var(--border);
       border-radius: 6px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: #fff;
     }
-    input[type=file] { font-size: 13px; }
-    button {
-      padding: 6px 12px;
+    input[type=text] {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      flex: 1;
+    }
+    button, label.btn {
+      padding: 5px 12px;
       font-size: 13px;
       border: 1px solid var(--border);
       border-radius: 6px;
       background: #f6f8fa;
       cursor: pointer;
+      color: var(--fg);
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1.4;
     }
-    button:hover { background: #eaeef2; }
+    button:hover, label.btn:hover { background: #eaeef2; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
     button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
     button.primary:hover { background: #0860c4; }
     button.danger { background: #fff; color: var(--danger); border-color: #ffd7d5; }
-    button.danger:hover { background: #fff0ee; }
-    pre#output {
+    button.danger:hover { background: var(--danger-bg); }
+    button.ghost { background: transparent; border-color: transparent; padding: 4px 8px; }
+    button.ghost:hover { background: var(--border-soft); }
+    .icon {
+      width: 16px; height: 16px;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .crumbs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      font-size: 13px;
+    }
+    .crumbs a {
+      color: var(--accent);
+      text-decoration: none;
+      padding: 2px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .crumbs a:hover { background: var(--accent-bg); }
+    .crumbs .sep { color: var(--muted); }
+    .crumbs .current {
+      font-weight: 600;
+      padding: 2px 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    main {
+      flex: 1;
+      padding: 16px;
+      overflow: auto;
+    }
+    .table-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-soft);
+      white-space: nowrap;
+    }
+    th {
+      background: #f6f8fa;
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0;
+    }
+    tbody tr:hover { background: var(--row-hover); }
+    tbody tr:last-child td { border-bottom: none; }
+    td.name {
+      width: 100%;
+      max-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    td.name a {
+      color: var(--fg);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    td.name a:hover { color: var(--accent); }
+    td.name a.dir { font-weight: 500; }
+    td.size, td.mtime {
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12.5px;
+    }
+    td.actions {
+      text-align: right;
+    }
+    td.actions button { margin-left: 4px; }
+
+    .empty {
+      padding: 32px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .status {
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+    .status.err {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid #ffd7d5;
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+    }
+    .status.info {
+      background: var(--accent-bg);
+      color: var(--accent);
+      border: 1px solid #b6e3ff;
+    }
+    .raw {
+      margin-top: 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+    .raw summary {
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .raw pre {
+      margin: 8px 0 0;
       background: #0d1117;
       color: #e6edf3;
-      padding: 16px;
-      border-radius: 8px;
-      max-height: 480px;
+      padding: 12px;
+      border-radius: 6px;
+      max-height: 280px;
       overflow: auto;
-      font-size: 12.5px;
+      font-size: 12px;
       line-height: 1.45;
       white-space: pre-wrap;
       word-break: break-all;
-      margin: 0;
     }
-    .status {
+    .spinner {
       display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 600;
-      margin-right: 8px;
+      width: 12px; height: 12px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
     }
-    .status.ok { background: #dafbe1; color: var(--ok); }
-    .status.err { background: #ffebe9; color: var(--danger); }
-    .hint { font-size: 12px; color: var(--muted); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
-  <h1>TOS Web GUI</h1>
-  <p class="hint">所有操作通过后端调用 <code>tosutil</code> 完成。请先确认容器/主机已经正确挂载 <code>~/.tosutilconfig</code>。</p>
-
-  <div class="card">
-    <h2>路径</h2>
+  <header>
     <div class="row">
-      <label for="path">tos://</label>
-      <input id="path" type="text" placeholder="tos://your-bucket/some/dir/" />
-      <button class="primary" onclick="browse()">浏览</button>
-      <button onclick="listBuckets()">列出 Buckets</button>
-      <button onclick="mkdir()">新建目录</button>
+      <h1>TOS Web GUI <span class="v">via tosutil</span></h1>
+      <button class="ghost" id="btn-up" title="返回上级">⬆ Up</button>
+      <button class="ghost" id="btn-refresh" title="刷新">⟳ Refresh</button>
+      <input id="addr" class="grow" type="text" placeholder="tos://bucket/path/  (留空 = 列出 buckets)" />
+      <button id="btn-go">Go</button>
     </div>
     <div class="row">
-      <label for="file">上传文件</label>
-      <input id="file" type="file" />
-      <button class="primary" onclick="upload()">上传到当前路径</button>
+      <div id="crumbs" class="crumbs grow"></div>
+      <label class="btn" for="upload-file" title="上传到当前目录">⬆ Upload</label>
+      <input id="upload-file" type="file" class="hidden" />
+      <button id="btn-mkdir" title="在当前目录创建子目录">+ New Folder</button>
     </div>
-  </div>
+  </header>
 
-  <div class="card">
-    <h2>单对象操作</h2>
-    <div class="row">
-      <label for="object">对象</label>
-      <input id="object" type="text" placeholder="tos://your-bucket/some/dir/file.txt" />
-      <button onclick="download()">下载</button>
-      <button class="danger" onclick="del()">删除</button>
+  <main>
+    <div id="status" class="hidden"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:60%">Name</th>
+            <th style="width:15%">Size</th>
+            <th style="width:20%">Modified</th>
+            <th style="width:5%; text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="empty" class="empty hidden">（空目录）</div>
     </div>
-    <p class="hint">下载会落地到容器内 <code>/data/downloads/</code>。如要持久化，请挂载 <code>-v ~/tos-web-data:/data</code>。</p>
-  </div>
 
-  <div class="card">
-    <h2>输出</h2>
-    <div id="meta" class="hint" style="margin-bottom:8px;"></div>
-    <pre id="output">（结果将显示在这里）</pre>
-  </div>
+    <details class="raw">
+      <summary>tosutil 原始输出</summary>
+      <pre id="raw">（操作后会显示在这里）</pre>
+    </details>
+  </main>
 
   <script>
+    // ---------------------------------------------------------------------
+    // 状态
+    // ---------------------------------------------------------------------
+    const state = {
+      path: "",          // "" 表示在 root（显示 buckets）
+      loading: false,
+      lastEntries: [],
+    };
+
     const $ = (id) => document.getElementById(id);
-    const out = $("output");
-    const meta = $("meta");
 
-    function showResult(label, data) {
-      const ok = data && data.success !== false;
-      const stdout = (data && (data.stdout ?? "")) || "";
-      const stderr = (data && (data.stderr ?? "")) || "";
-      const error = data && data.error ? data.error : "";
-      meta.innerHTML =
-        `<span class="status ${ok ? "ok" : "err"}">${ok ? "OK" : "ERROR"}</span>` +
-        `<strong>${label}</strong>` +
-        (data && data.filename ? ` — file: <code>${escapeHtml(data.filename)}</code>` : "") +
-        (data && data.remote ? ` — remote: <code>${escapeHtml(data.remote)}</code>` : "");
-      const parts = [];
-      if (error) parts.push("ERROR: " + error);
-      if (stdout) parts.push(stdout.trimEnd());
-      if (stderr) parts.push("--- stderr ---\n" + stderr.trimEnd());
-      if (!parts.length) parts.push(JSON.stringify(data, null, 2));
-      out.textContent = parts.join("\n\n");
-    }
-
+    // ---------------------------------------------------------------------
+    // 工具
+    // ---------------------------------------------------------------------
     function escapeHtml(s) {
       return String(s).replace(/[&<>"']/g, (c) => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
       }[c]));
     }
 
+    function fmtSize(n) {
+      if (n === null || n === undefined) return "—";
+      if (n === 0) return "0 B";
+      const units = ["B", "KB", "MB", "GB", "TB"];
+      let i = 0, v = n;
+      while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+      return (v < 10 ? v.toFixed(1) : Math.round(v)) + " " + units[i];
+    }
+
+    function parentPath(p) {
+      if (!p || p === "tos://") return "";
+      const stripped = p.replace(/\/+$/, "");
+      // tos://bucket -> root
+      if (stripped.indexOf("/", "tos://".length) === -1) return "";
+      const i = stripped.lastIndexOf("/");
+      return stripped.substring(0, i + 1);
+    }
+
+    function buildCrumbs(p) {
+      const items = [{ label: "TOS", path: "" }];
+      if (!p) return items;
+      const stripped = p.replace(/^tos:\/\//, "").replace(/\/+$/, "");
+      if (!stripped) return items;
+      const parts = stripped.split("/");
+      let cur = "tos://";
+      for (const part of parts) {
+        cur += part + "/";
+        items.push({ label: part, path: cur });
+      }
+      return items;
+    }
+
+    function renderCrumbs() {
+      const items = buildCrumbs(state.path);
+      const html = items.map((it, idx) => {
+        const isLast = idx === items.length - 1;
+        if (isLast) return `<span class="current">${escapeHtml(it.label)}</span>`;
+        return `<a data-path="${escapeHtml(it.path)}">${escapeHtml(it.label)}</a>`
+          + `<span class="sep">/</span>`;
+      }).join("");
+      $("crumbs").innerHTML = html;
+      $("crumbs").querySelectorAll("a[data-path]").forEach(a => {
+        a.addEventListener("click", () => navigate(a.dataset.path));
+      });
+    }
+
+    function showStatus(kind, text) {
+      const el = $("status");
+      el.className = "status " + kind;
+      el.textContent = text;
+      el.classList.remove("hidden");
+    }
+
+    function clearStatus() {
+      $("status").classList.add("hidden");
+      $("status").textContent = "";
+    }
+
+    function setLoading(on) {
+      state.loading = on;
+      $("btn-refresh").disabled = on;
+      $("btn-go").disabled = on;
+      $("btn-mkdir").disabled = on || state.path === "";
+      $("btn-up").disabled = on || state.path === "";
+    }
+
+    // ---------------------------------------------------------------------
+    // API
+    // ---------------------------------------------------------------------
     async function callJson(method, url, opts = {}) {
       const init = { method, ...opts };
       let resp;
@@ -168,7 +385,7 @@
       try {
         data = await resp.json();
       } catch (e) {
-        return { success: false, error: `non-JSON response (${resp.status})` };
+        return { success: false, error: `non-JSON response (HTTP ${resp.status})` };
       }
       if (!resp.ok && data && data.success === undefined) {
         data.success = false;
@@ -177,56 +394,198 @@
       return data;
     }
 
-    async function browse() {
-      const p = $("path").value.trim();
-      if (!p) { alert("请输入 tos:// 路径"); return; }
-      showResult("loading…", { stdout: "" });
-      const data = await callJson("GET", "/api/list?path=" + encodeURIComponent(p));
-      showResult("GET /api/list " + p, data);
+    function setRaw(data) {
+      const stdout = (data && data.stdout) || "";
+      const stderr = (data && data.stderr) || "";
+      const error = (data && data.error) || "";
+      const chunks = [];
+      if (error) chunks.push("ERROR: " + error);
+      if (stdout) chunks.push(stdout.trimEnd());
+      if (stderr) chunks.push("--- stderr ---\n" + stderr.trimEnd());
+      $("raw").textContent = chunks.join("\n\n") || "（无输出）";
     }
 
-    async function listBuckets() {
-      showResult("loading…", { stdout: "" });
-      const data = await callJson("GET", "/api/buckets");
-      showResult("GET /api/buckets", data);
+    // ---------------------------------------------------------------------
+    // 渲染
+    // ---------------------------------------------------------------------
+    function renderRows(entries) {
+      const tbody = $("rows");
+      tbody.innerHTML = "";
+      if (!entries.length) {
+        $("empty").classList.remove("hidden");
+        return;
+      }
+      $("empty").classList.add("hidden");
+
+      const frag = document.createDocumentFragment();
+      for (const e of entries) {
+        const tr = document.createElement("tr");
+
+        const tdName = document.createElement("td");
+        tdName.className = "name";
+        const a = document.createElement("a");
+        a.title = e.path;
+        a.classList.add(e.is_dir ? "dir" : "file");
+        a.innerHTML = (e.is_dir ? "📁 " : "📄 ") + escapeHtml(e.name) + (e.is_dir ? "/" : "");
+        if (e.is_dir) {
+          a.addEventListener("click", () => navigate(e.path));
+        } else {
+          a.addEventListener("click", () => triggerDownload(e.path));
+        }
+        tdName.appendChild(a);
+
+        const tdSize = document.createElement("td");
+        tdSize.className = "size";
+        tdSize.textContent = e.is_dir ? "—" : fmtSize(e.size);
+
+        const tdMtime = document.createElement("td");
+        tdMtime.className = "mtime";
+        tdMtime.textContent = e.mtime || "—";
+
+        const tdActions = document.createElement("td");
+        tdActions.className = "actions";
+        if (!e.is_dir) {
+          const dl = document.createElement("button");
+          dl.className = "ghost";
+          dl.title = "下载";
+          dl.textContent = "⬇";
+          dl.addEventListener("click", (ev) => { ev.stopPropagation(); triggerDownload(e.path); });
+          tdActions.appendChild(dl);
+        }
+        const del = document.createElement("button");
+        del.className = "danger";
+        del.title = "删除";
+        del.textContent = "🗑";
+        del.addEventListener("click", (ev) => { ev.stopPropagation(); deleteEntry(e); });
+        tdActions.appendChild(del);
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdSize);
+        tr.appendChild(tdMtime);
+        tr.appendChild(tdActions);
+        frag.appendChild(tr);
+      }
+      tbody.appendChild(frag);
+    }
+
+    // ---------------------------------------------------------------------
+    // 操作
+    // ---------------------------------------------------------------------
+    async function navigate(path) {
+      state.path = path || "";
+      $("addr").value = state.path;
+      renderCrumbs();
+      clearStatus();
+      setLoading(true);
+
+      const url = "/api/browse" + (state.path ? "?path=" + encodeURIComponent(state.path) : "");
+      const data = await callJson("GET", url);
+      setLoading(false);
+      setRaw(data);
+
+      if (data.success === false) {
+        showStatus("err", data.error || "请求失败");
+        renderRows([]);
+        return;
+      }
+      state.lastEntries = data.entries || [];
+      renderRows(state.lastEntries);
+    }
+
+    function triggerDownload(path) {
+      // 服务端用 FileResponse + Content-Disposition: attachment 触发浏览器下载弹窗。
+      // 创建一次性 anchor 即可，不会跳转当前页面。
+      const url = "/api/download?path=" + encodeURIComponent(path);
+      const a = document.createElement("a");
+      a.href = url;
+      a.rel = "noopener";
+      // 设个 download 属性是兜底；服务端的 Content-Disposition 才是权威
+      const basename = path.split("/").pop();
+      if (basename) a.download = basename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      showStatus("info", "已发起下载：" + path + "（服务端缓存在 /data/downloads/）");
+    }
+
+    async function deleteEntry(e) {
+      const what = (e.is_dir ? "目录" : "对象") + "：" + e.path;
+      if (!confirm("确认删除" + what + "？\n（目录只删除该 prefix 自身的对象，不会递归）")) return;
+      setLoading(true);
+      const data = await callJson("POST", "/api/delete?path=" + encodeURIComponent(e.path));
+      setLoading(false);
+      setRaw(data);
+      if (data.success === false) {
+        showStatus("err", data.error || "删除失败");
+        return;
+      }
+      await navigate(state.path);
     }
 
     async function mkdir() {
-      const p = $("path").value.trim();
-      if (!p) { alert("请输入 tos:// 路径"); return; }
-      showResult("loading…", { stdout: "" });
-      const data = await callJson("POST", "/api/mkdir?path=" + encodeURIComponent(p));
-      showResult("POST /api/mkdir " + p, data);
+      if (!state.path) {
+        showStatus("err", "请先进入某个 bucket / 目录，再创建子目录");
+        return;
+      }
+      const name = prompt("新建子目录名（不要带 /）：");
+      if (!name) return;
+      if (name.includes("/")) {
+        showStatus("err", "目录名不能包含 /");
+        return;
+      }
+      const target = state.path + name + "/";
+      setLoading(true);
+      const data = await callJson("POST", "/api/mkdir?path=" + encodeURIComponent(target));
+      setLoading(false);
+      setRaw(data);
+      if (data.success === false) {
+        showStatus("err", data.error || "创建失败");
+        return;
+      }
+      await navigate(state.path);
     }
 
-    async function upload() {
-      const p = $("path").value.trim();
-      const f = $("file").files[0];
-      if (!p) { alert("请输入 tos:// 路径"); return; }
-      if (!f) { alert("请选择文件"); return; }
+    async function uploadFile(file) {
+      if (!state.path) {
+        showStatus("err", "请先进入某个 bucket / 目录再上传");
+        return;
+      }
       const fd = new FormData();
-      fd.append("file", f);
-      showResult("uploading…", { stdout: "" });
-      const data = await callJson("POST", "/api/upload?path=" + encodeURIComponent(p), { body: fd });
-      showResult("POST /api/upload " + p, data);
+      fd.append("file", file);
+      setLoading(true);
+      showStatus("info", "上传中：" + file.name + " → " + state.path);
+      const data = await callJson(
+        "POST",
+        "/api/upload?path=" + encodeURIComponent(state.path),
+        { body: fd },
+      );
+      setLoading(false);
+      setRaw(data);
+      if (data.success === false) {
+        showStatus("err", data.error || "上传失败");
+        return;
+      }
+      await navigate(state.path);
     }
 
-    async function download() {
-      const p = $("object").value.trim();
-      if (!p) { alert("请输入 tos:// 对象路径"); return; }
-      showResult("downloading…", { stdout: "" });
-      const data = await callJson("POST", "/api/download?path=" + encodeURIComponent(p));
-      showResult("POST /api/download " + p, data);
-    }
+    // ---------------------------------------------------------------------
+    // 绑定
+    // ---------------------------------------------------------------------
+    $("btn-go").addEventListener("click", () => navigate($("addr").value.trim()));
+    $("addr").addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") navigate($("addr").value.trim());
+    });
+    $("btn-up").addEventListener("click", () => navigate(parentPath(state.path)));
+    $("btn-refresh").addEventListener("click", () => navigate(state.path));
+    $("btn-mkdir").addEventListener("click", () => mkdir());
+    $("upload-file").addEventListener("change", (ev) => {
+      const f = ev.target.files[0];
+      if (f) uploadFile(f);
+      ev.target.value = "";
+    });
 
-    async function del() {
-      const p = $("object").value.trim();
-      if (!p) { alert("请输入 tos:// 对象路径"); return; }
-      if (!confirm("确认删除：\n" + p)) return;
-      showResult("deleting…", { stdout: "" });
-      const data = await callJson("POST", "/api/delete?path=" + encodeURIComponent(p));
-      showResult("POST /api/delete " + p, data);
-    }
+    // 初始：列出 buckets
+    navigate("");
   </script>
 </body>
 </html>
