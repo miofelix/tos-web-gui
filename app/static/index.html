@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>TOS Web GUI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --fg: #1f2328;
+      --muted: #57606a;
+      --bg: #f6f8fa;
+      --card: #ffffff;
+      --border: #d0d7de;
+      --accent: #0969da;
+      --danger: #cf222e;
+      --ok: #1a7f37;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      color: var(--fg);
+      background: var(--bg);
+      padding: 24px;
+    }
+    h1 { margin: 0 0 16px; font-size: 20px; }
+    h2 { margin: 24px 0 8px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .row:last-child { margin-bottom: 0; }
+    label { font-size: 13px; color: var(--muted); }
+    input[type=text] {
+      flex: 1 1 320px;
+      min-width: 240px;
+      padding: 6px 10px;
+      font-size: 13px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    input[type=file] { font-size: 13px; }
+    button {
+      padding: 6px 12px;
+      font-size: 13px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #f6f8fa;
+      cursor: pointer;
+    }
+    button:hover { background: #eaeef2; }
+    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    button.primary:hover { background: #0860c4; }
+    button.danger { background: #fff; color: var(--danger); border-color: #ffd7d5; }
+    button.danger:hover { background: #fff0ee; }
+    pre#output {
+      background: #0d1117;
+      color: #e6edf3;
+      padding: 16px;
+      border-radius: 8px;
+      max-height: 480px;
+      overflow: auto;
+      font-size: 12.5px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: 0;
+    }
+    .status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-right: 8px;
+    }
+    .status.ok { background: #dafbe1; color: var(--ok); }
+    .status.err { background: #ffebe9; color: var(--danger); }
+    .hint { font-size: 12px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <h1>TOS Web GUI</h1>
+  <p class="hint">所有操作通过后端调用 <code>tosutil</code> 完成。请先确认容器/主机已经正确挂载 <code>~/.tosutilconfig</code>。</p>
+
+  <div class="card">
+    <h2>路径</h2>
+    <div class="row">
+      <label for="path">tos://</label>
+      <input id="path" type="text" placeholder="tos://your-bucket/some/dir/" />
+      <button class="primary" onclick="browse()">浏览</button>
+      <button onclick="listBuckets()">列出 Buckets</button>
+      <button onclick="mkdir()">新建目录</button>
+    </div>
+    <div class="row">
+      <label for="file">上传文件</label>
+      <input id="file" type="file" />
+      <button class="primary" onclick="upload()">上传到当前路径</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>单对象操作</h2>
+    <div class="row">
+      <label for="object">对象</label>
+      <input id="object" type="text" placeholder="tos://your-bucket/some/dir/file.txt" />
+      <button onclick="download()">下载</button>
+      <button class="danger" onclick="del()">删除</button>
+    </div>
+    <p class="hint">下载会落地到容器内 <code>/data/downloads/</code>。如要持久化，请挂载 <code>-v ~/tos-web-data:/data</code>。</p>
+  </div>
+
+  <div class="card">
+    <h2>输出</h2>
+    <div id="meta" class="hint" style="margin-bottom:8px;"></div>
+    <pre id="output">（结果将显示在这里）</pre>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const out = $("output");
+    const meta = $("meta");
+
+    function showResult(label, data) {
+      const ok = data && data.success !== false;
+      const stdout = (data && (data.stdout ?? "")) || "";
+      const stderr = (data && (data.stderr ?? "")) || "";
+      const error = data && data.error ? data.error : "";
+      meta.innerHTML =
+        `<span class="status ${ok ? "ok" : "err"}">${ok ? "OK" : "ERROR"}</span>` +
+        `<strong>${label}</strong>` +
+        (data && data.filename ? ` — file: <code>${escapeHtml(data.filename)}</code>` : "") +
+        (data && data.remote ? ` — remote: <code>${escapeHtml(data.remote)}</code>` : "");
+      const parts = [];
+      if (error) parts.push("ERROR: " + error);
+      if (stdout) parts.push(stdout.trimEnd());
+      if (stderr) parts.push("--- stderr ---\n" + stderr.trimEnd());
+      if (!parts.length) parts.push(JSON.stringify(data, null, 2));
+      out.textContent = parts.join("\n\n");
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+
+    async function callJson(method, url, opts = {}) {
+      const init = { method, ...opts };
+      let resp;
+      try {
+        resp = await fetch(url, init);
+      } catch (e) {
+        return { success: false, error: "network error: " + e.message };
+      }
+      let data;
+      try {
+        data = await resp.json();
+      } catch (e) {
+        return { success: false, error: `non-JSON response (${resp.status})` };
+      }
+      if (!resp.ok && data && data.success === undefined) {
+        data.success = false;
+        if (!data.error && data.detail) data.error = data.detail;
+      }
+      return data;
+    }
+
+    async function browse() {
+      const p = $("path").value.trim();
+      if (!p) { alert("请输入 tos:// 路径"); return; }
+      showResult("loading…", { stdout: "" });
+      const data = await callJson("GET", "/api/list?path=" + encodeURIComponent(p));
+      showResult("GET /api/list " + p, data);
+    }
+
+    async function listBuckets() {
+      showResult("loading…", { stdout: "" });
+      const data = await callJson("GET", "/api/buckets");
+      showResult("GET /api/buckets", data);
+    }
+
+    async function mkdir() {
+      const p = $("path").value.trim();
+      if (!p) { alert("请输入 tos:// 路径"); return; }
+      showResult("loading…", { stdout: "" });
+      const data = await callJson("POST", "/api/mkdir?path=" + encodeURIComponent(p));
+      showResult("POST /api/mkdir " + p, data);
+    }
+
+    async function upload() {
+      const p = $("path").value.trim();
+      const f = $("file").files[0];
+      if (!p) { alert("请输入 tos:// 路径"); return; }
+      if (!f) { alert("请选择文件"); return; }
+      const fd = new FormData();
+      fd.append("file", f);
+      showResult("uploading…", { stdout: "" });
+      const data = await callJson("POST", "/api/upload?path=" + encodeURIComponent(p), { body: fd });
+      showResult("POST /api/upload " + p, data);
+    }
+
+    async function download() {
+      const p = $("object").value.trim();
+      if (!p) { alert("请输入 tos:// 对象路径"); return; }
+      showResult("downloading…", { stdout: "" });
+      const data = await callJson("POST", "/api/download?path=" + encodeURIComponent(p));
+      showResult("POST /api/download " + p, data);
+    }
+
+    async function del() {
+      const p = $("object").value.trim();
+      if (!p) { alert("请输入 tos:// 对象路径"); return; }
+      if (!confirm("确认删除：\n" + p)) return;
+      showResult("deleting…", { stdout: "" });
+      const data = await callJson("POST", "/api/delete?path=" + encodeURIComponent(p));
+      showResult("POST /api/delete " + p, data);
+    }
+  </script>
+</body>
+</html>
