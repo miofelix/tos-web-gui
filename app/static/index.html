@@ -17,6 +17,7 @@
       --danger: #cf222e;
       --danger-bg: #ffebe9;
       --ok: #1a7f37;
+      --ok-bg: #dafbe1;
       --row-hover: #f6f8fa;
     }
     * { box-sizing: border-box; }
@@ -48,7 +49,6 @@
       margin: 0;
       font-size: 15px;
       font-weight: 600;
-      letter-spacing: .02em;
     }
     h1 .v {
       font-size: 11px;
@@ -56,14 +56,12 @@
       font-weight: 400;
       margin-left: 6px;
     }
-    input[type=text], input[type=file] {
+    input[type=text] {
       padding: 6px 10px;
       font-size: 13px;
       border: 1px solid var(--border);
       border-radius: 6px;
       background: #fff;
-    }
-    input[type=text] {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       flex: 1;
     }
@@ -82,18 +80,15 @@
       line-height: 1.4;
     }
     button:hover, label.btn:hover { background: #eaeef2; }
-    button:disabled { opacity: .5; cursor: not-allowed; }
+    button:disabled { opacity: .4; cursor: not-allowed; }
     button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
     button.primary:hover { background: #0860c4; }
+    button.primary:disabled { background: var(--accent); }
     button.danger { background: #fff; color: var(--danger); border-color: #ffd7d5; }
     button.danger:hover { background: var(--danger-bg); }
+    button.danger:disabled { background: #fff; color: #cf222e88; border-color: #ffd7d588; }
     button.ghost { background: transparent; border-color: transparent; padding: 4px 8px; }
     button.ghost:hover { background: var(--border-soft); }
-    .icon {
-      width: 16px; height: 16px;
-      display: inline-block;
-      flex-shrink: 0;
-    }
 
     .crumbs {
       display: flex;
@@ -120,7 +115,7 @@
 
     main {
       flex: 1;
-      padding: 16px;
+      padding: 16px 16px 220px;  /* 给底部任务面板留空间 */
       overflow: auto;
     }
     .table-wrap {
@@ -236,18 +231,167 @@
       border-top-color: var(--accent);
       border-radius: 50%;
       animation: spin .8s linear infinite;
+      vertical-align: middle;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .hidden { display: none !important; }
+
+    /* ----- 右下任务浮层 ----- */
+    #task-panel {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      width: 360px;
+      max-height: 60vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 1000;
+    }
+    .task-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.06);
+      font-size: 12.5px;
+      transition: opacity .3s ease;
+    }
+    .task-card.fading { opacity: 0; }
+    .task-head {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .task-name {
+      flex: 1;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .task-kind {
+      font-size: 14px;
+    }
+    .task-state {
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .task-state.pending  { background: var(--border-soft); color: var(--muted); }
+    .task-state.running  { background: var(--accent-bg); color: var(--accent); }
+    .task-state.done     { background: var(--ok-bg); color: var(--ok); }
+    .task-state.error    { background: var(--danger-bg); color: var(--danger); }
+    .task-state.cancelled{ background: var(--border-soft); color: var(--muted); }
+    .task-close {
+      cursor: pointer;
+      color: var(--muted);
+      background: transparent;
+      border: none;
+      padding: 0 4px;
+      font-size: 14px;
+    }
+    .task-close:hover { color: var(--fg); }
+    .task-bar {
+      height: 6px;
+      background: var(--border-soft);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 4px 0 6px;
+    }
+    .task-bar > div {
+      height: 100%;
+      background: var(--accent);
+      transition: width .25s ease;
+    }
+    .task-bar.indeterminate > div {
+      width: 30% !important;
+      animation: indet 1.2s ease-in-out infinite;
+    }
+    .task-bar.error > div { background: var(--danger); width: 100% !important; }
+    .task-bar.done  > div { background: var(--ok);     width: 100% !important; }
+    @keyframes indet {
+      0%   { margin-left: -30%; }
+      100% { margin-left: 100%; }
+    }
+    .task-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11.5px;
+    }
+    .task-meta .err {
+      color: var(--danger);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ----- 删除模态 ----- */
+    dialog#delete-modal {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 22px;
+      width: min(440px, 92vw);
+      background: var(--card);
+      box-shadow: 0 12px 36px rgba(0,0,0,.18);
+    }
+    dialog#delete-modal::backdrop {
+      background: rgba(0,0,0,.32);
+    }
+    dialog#delete-modal h3 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      color: var(--danger);
+    }
+    dialog#delete-modal p {
+      margin: 6px 0;
+      font-size: 13px;
+      color: var(--fg);
+    }
+    dialog#delete-modal code {
+      display: block;
+      background: var(--danger-bg);
+      color: var(--danger);
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin: 6px 0 10px;
+      word-break: break-all;
+      white-space: pre-wrap;
+    }
+    dialog#delete-modal input {
+      width: 100%;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      margin-bottom: 12px;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
   </style>
 </head>
 <body>
   <header>
     <div class="row">
       <h1>TOS Web GUI <span class="v">via tosutil</span></h1>
-      <button class="ghost" id="btn-up" title="返回上级">⬆ Up</button>
-      <button class="ghost" id="btn-refresh" title="刷新">⟳ Refresh</button>
+      <button class="ghost" id="btn-back"    title="后退 (Alt+←)">◀</button>
+      <button class="ghost" id="btn-forward" title="前进 (Alt+→)">▶</button>
+      <button class="ghost" id="btn-up"      title="返回上级">⬆</button>
+      <button class="ghost" id="btn-refresh" title="刷新">⟳</button>
       <input id="addr" class="grow" type="text" placeholder="tos://bucket/path/  (留空 = 列出 buckets)" />
       <button id="btn-go">Go</button>
     </div>
@@ -266,9 +410,9 @@
       <table>
         <thead>
           <tr>
-            <th style="width:60%">Name</th>
-            <th style="width:15%">Size</th>
-            <th style="width:20%">Modified</th>
+            <th style="width:55%">Name</th>
+            <th style="width:18%">Size</th>
+            <th style="width:22%">Modified</th>
             <th style="width:5%; text-align:right">Actions</th>
           </tr>
         </thead>
@@ -283,21 +427,48 @@
     </details>
   </main>
 
+  <div id="task-panel"></div>
+
+  <dialog id="delete-modal">
+    <h3>永久删除</h3>
+    <p>下列对象将被<strong>不可恢复</strong>地删除：</p>
+    <code id="delete-target"></code>
+    <p>请键入 <strong id="delete-name"></strong> 以确认：</p>
+    <input id="delete-input" autocomplete="off" autocapitalize="off" spellcheck="false" />
+    <div class="modal-actions">
+      <button id="delete-cancel" value="cancel">取消</button>
+      <button id="delete-confirm" class="danger" disabled>永久删除</button>
+    </div>
+  </dialog>
+
   <script>
-    // ---------------------------------------------------------------------
+    // =================================================================
     // 状态
-    // ---------------------------------------------------------------------
+    // =================================================================
     const state = {
-      path: "",          // "" 表示在 root（显示 buckets）
-      loading: false,
-      lastEntries: [],
+      path: "",
+      currentEntries: [],
+      // 导航历史栈
+      history: { stack: [""], idx: 0 },
+      // 后端任务状态缓存：id -> task
+      tasks: new Map(),
+      // dirsize 任务 -> 它对应的目录 path（用来把结果写回行）
+      pendingDirSize: new Map(),
+      // 已经触发过浏览器原生下载弹窗的 task_id，避免重复触发
+      downloadTriggered: new Set(),
+      // 已经因为某个 upload 完成而刷新过当前目录的 task_id
+      uploadRefreshed: new Set(),
+      // 浏览器→服务器 阶段的本地上传卡片：local_id -> {name, loaded, total, xhr}
+      localUploads: new Map(),
+      // 待删除条目
+      pendingDelete: null,
     };
 
     const $ = (id) => document.getElementById(id);
 
-    // ---------------------------------------------------------------------
+    // =================================================================
     // 工具
-    // ---------------------------------------------------------------------
+    // =================================================================
     function escapeHtml(s) {
       return String(s).replace(/[&<>"']/g, (c) => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -316,7 +487,6 @@
     function parentPath(p) {
       if (!p || p === "tos://") return "";
       const stripped = p.replace(/\/+$/, "");
-      // tos://bucket -> root
       if (stripped.indexOf("/", "tos://".length) === -1) return "";
       const i = stripped.lastIndexOf("/");
       return stripped.substring(0, i + 1);
@@ -336,57 +506,25 @@
       return items;
     }
 
-    function renderCrumbs() {
-      const items = buildCrumbs(state.path);
-      const html = items.map((it, idx) => {
-        const isLast = idx === items.length - 1;
-        if (isLast) return `<span class="current">${escapeHtml(it.label)}</span>`;
-        return `<a data-path="${escapeHtml(it.path)}">${escapeHtml(it.label)}</a>`
-          + `<span class="sep">/</span>`;
-      }).join("");
-      $("crumbs").innerHTML = html;
-      $("crumbs").querySelectorAll("a[data-path]").forEach(a => {
-        a.addEventListener("click", () => navigate(a.dataset.path));
-      });
-    }
-
     function showStatus(kind, text) {
       const el = $("status");
       el.className = "status " + kind;
       el.textContent = text;
       el.classList.remove("hidden");
     }
-
     function clearStatus() {
       $("status").classList.add("hidden");
       $("status").textContent = "";
     }
 
-    function setLoading(on) {
-      state.loading = on;
-      $("btn-refresh").disabled = on;
-      $("btn-go").disabled = on;
-      $("btn-mkdir").disabled = on || state.path === "";
-      $("btn-up").disabled = on || state.path === "";
-    }
-
-    // ---------------------------------------------------------------------
-    // API
-    // ---------------------------------------------------------------------
     async function callJson(method, url, opts = {}) {
       const init = { method, ...opts };
       let resp;
-      try {
-        resp = await fetch(url, init);
-      } catch (e) {
-        return { success: false, error: "network error: " + e.message };
-      }
+      try { resp = await fetch(url, init); }
+      catch (e) { return { success: false, error: "network error: " + e.message }; }
       let data;
-      try {
-        data = await resp.json();
-      } catch (e) {
-        return { success: false, error: `non-JSON response (HTTP ${resp.status})` };
-      }
+      try { data = await resp.json(); }
+      catch (e) { return { success: false, error: `non-JSON response (HTTP ${resp.status})` }; }
       if (!resp.ok && data && data.success === undefined) {
         data.success = false;
         if (!data.error && data.detail) data.error = data.detail;
@@ -397,17 +535,83 @@
     function setRaw(data) {
       const stdout = (data && data.stdout) || "";
       const stderr = (data && data.stderr) || "";
-      const error = (data && data.error) || "";
+      const error  = (data && data.error)  || "";
       const chunks = [];
-      if (error) chunks.push("ERROR: " + error);
+      if (error)  chunks.push("ERROR: " + error);
       if (stdout) chunks.push(stdout.trimEnd());
       if (stderr) chunks.push("--- stderr ---\n" + stderr.trimEnd());
       $("raw").textContent = chunks.join("\n\n") || "（无输出）";
     }
 
-    // ---------------------------------------------------------------------
-    // 渲染
-    // ---------------------------------------------------------------------
+    // =================================================================
+    // 历史栈 + 导航
+    // =================================================================
+    function renderNavButtons() {
+      $("btn-back").disabled    = state.history.idx <= 0;
+      $("btn-forward").disabled = state.history.idx >= state.history.stack.length - 1;
+      $("btn-up").disabled      = !state.path;
+    }
+
+    function go(path, { push = true } = {}) {
+      const norm = path || "";
+      if (push) {
+        // 跳到已经在栈顶的同一路径不重复入栈
+        const top = state.history.stack[state.history.idx];
+        if (top !== norm) {
+          state.history.stack = state.history.stack.slice(0, state.history.idx + 1);
+          state.history.stack.push(norm);
+          state.history.idx = state.history.stack.length - 1;
+        }
+      }
+      doNavigate(norm);
+    }
+
+    function back() {
+      if (state.history.idx <= 0) return;
+      state.history.idx--;
+      doNavigate(state.history.stack[state.history.idx]);
+    }
+    function forward() {
+      if (state.history.idx >= state.history.stack.length - 1) return;
+      state.history.idx++;
+      doNavigate(state.history.stack[state.history.idx]);
+    }
+
+    async function doNavigate(path) {
+      state.path = path || "";
+      $("addr").value = state.path;
+      renderCrumbs();
+      renderNavButtons();
+      clearStatus();
+
+      const url = "/api/browse" + (state.path ? "?path=" + encodeURIComponent(state.path) : "");
+      const data = await callJson("GET", url);
+      setRaw(data);
+      if (data.success === false) {
+        showStatus("err", data.error || "请求失败");
+        renderRows([]);
+        return;
+      }
+      state.currentEntries = data.entries || [];
+      renderRows(state.currentEntries);
+    }
+
+    function renderCrumbs() {
+      const items = buildCrumbs(state.path);
+      const html = items.map((it, idx) => {
+        const isLast = idx === items.length - 1;
+        if (isLast) return `<span class="current">${escapeHtml(it.label)}</span>`;
+        return `<a data-path="${escapeHtml(it.path)}">${escapeHtml(it.label)}</a><span class="sep">/</span>`;
+      }).join("");
+      $("crumbs").innerHTML = html;
+      $("crumbs").querySelectorAll("a[data-path]").forEach(a => {
+        a.addEventListener("click", () => go(a.dataset.path));
+      });
+    }
+
+    // =================================================================
+    // 行渲染
+    // =================================================================
     function renderRows(entries) {
       const tbody = $("rows");
       tbody.innerHTML = "";
@@ -420,7 +624,10 @@
       const frag = document.createDocumentFragment();
       for (const e of entries) {
         const tr = document.createElement("tr");
+        tr.dataset.path = e.path;
+        tr.dataset.isDir = String(e.is_dir);
 
+        // Name
         const tdName = document.createElement("td");
         tdName.className = "name";
         const a = document.createElement("a");
@@ -428,35 +635,47 @@
         a.classList.add(e.is_dir ? "dir" : "file");
         a.innerHTML = (e.is_dir ? "📁 " : "📄 ") + escapeHtml(e.name) + (e.is_dir ? "/" : "");
         if (e.is_dir) {
-          a.addEventListener("click", () => navigate(e.path));
+          a.addEventListener("click", () => go(e.path));
         } else {
-          a.addEventListener("click", () => triggerDownload(e.path));
+          a.addEventListener("click", () => startDownload(e));
         }
         tdName.appendChild(a);
 
+        // Size
         const tdSize = document.createElement("td");
         tdSize.className = "size";
         tdSize.textContent = e.is_dir ? "—" : fmtSize(e.size);
 
+        // Modified
         const tdMtime = document.createElement("td");
         tdMtime.className = "mtime";
         tdMtime.textContent = e.mtime || "—";
 
+        // Actions
         const tdActions = document.createElement("td");
         tdActions.className = "actions";
-        if (!e.is_dir) {
+
+        if (e.is_dir) {
+          const du = document.createElement("button");
+          du.className = "ghost";
+          du.title = "计算目录大小 (tosutil du)";
+          du.textContent = "📐";
+          du.addEventListener("click", (ev) => { ev.stopPropagation(); startDirSize(e, tr); });
+          tdActions.appendChild(du);
+        } else {
           const dl = document.createElement("button");
           dl.className = "ghost";
           dl.title = "下载";
           dl.textContent = "⬇";
-          dl.addEventListener("click", (ev) => { ev.stopPropagation(); triggerDownload(e.path); });
+          dl.addEventListener("click", (ev) => { ev.stopPropagation(); startDownload(e); });
           tdActions.appendChild(dl);
         }
+
         const del = document.createElement("button");
         del.className = "danger";
         del.title = "删除";
         del.textContent = "🗑";
-        del.addEventListener("click", (ev) => { ev.stopPropagation(); deleteEntry(e); });
+        del.addEventListener("click", (ev) => { ev.stopPropagation(); askDelete(e); });
         tdActions.appendChild(del);
 
         tr.appendChild(tdName);
@@ -468,60 +687,93 @@
       tbody.appendChild(frag);
     }
 
-    // ---------------------------------------------------------------------
-    // 操作
-    // ---------------------------------------------------------------------
-    async function navigate(path) {
-      state.path = path || "";
-      $("addr").value = state.path;
-      renderCrumbs();
-      clearStatus();
-      setLoading(true);
-
-      const url = "/api/browse" + (state.path ? "?path=" + encodeURIComponent(state.path) : "");
-      const data = await callJson("GET", url);
-      setLoading(false);
-      setRaw(data);
-
-      if (data.success === false) {
-        showStatus("err", data.error || "请求失败");
-        renderRows([]);
+    // =================================================================
+    // 行内操作：dirsize / download / delete
+    // =================================================================
+    async function startDirSize(entry, rowEl) {
+      const data = await callJson("POST", "/api/dirsize?path=" + encodeURIComponent(entry.path));
+      if (data.success === false || !data.task_id) {
+        showStatus("err", data.error || "无法启动 dirsize 任务");
         return;
       }
-      state.lastEntries = data.entries || [];
-      renderRows(state.lastEntries);
+      state.pendingDirSize.set(data.task_id, entry.path);
+      const sizeCell = rowEl.querySelector("td.size");
+      sizeCell.innerHTML = '<span class="spinner"></span>';
+      sizeCell.title = "计算中…";
     }
 
-    function triggerDownload(path) {
-      // 服务端用 FileResponse + Content-Disposition: attachment 触发浏览器下载弹窗。
-      // 创建一次性 anchor 即可，不会跳转当前页面。
-      const url = "/api/download?path=" + encodeURIComponent(path);
+    function applyDirSizeResult(taskId, task) {
+      const path = state.pendingDirSize.get(taskId);
+      if (!path) return;
+      state.pendingDirSize.delete(taskId);
+      const tr = document.querySelector(`#rows tr[data-path="${CSS.escape(path)}"]`);
+      if (!tr) return;
+      const sizeCell = tr.querySelector("td.size");
+      if (task.state === "done" && task.result) {
+        const sz = fmtSize(task.result.bytes);
+        const objs = task.result.objects;
+        sizeCell.textContent = sz + (objs != null ? ` · ${objs}` : "");
+        sizeCell.title = `${task.result.bytes} bytes` + (objs != null ? `, ${objs} objects` : "");
+      } else {
+        sizeCell.textContent = "!";
+        sizeCell.title = task.error || "计算失败";
+      }
+    }
+
+    async function startDownload(entry) {
+      const data = await callJson("POST", "/api/download/start?path=" + encodeURIComponent(entry.path));
+      if (data.success === false || !data.task_id) {
+        showStatus("err", data.error || "无法启动下载");
+      }
+      // 进度与触发下载都由任务面板轮询接管
+    }
+
+    function triggerBrowserDownload(taskId, name) {
+      if (state.downloadTriggered.has(taskId)) return;
+      state.downloadTriggered.add(taskId);
+      const url = `/api/download/${encodeURIComponent(taskId)}/file`;
       const a = document.createElement("a");
       a.href = url;
       a.rel = "noopener";
-      // 设个 download 属性是兜底；服务端的 Content-Disposition 才是权威
-      const basename = path.split("/").pop();
-      if (basename) a.download = basename;
+      if (name) a.download = name;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      showStatus("info", "已发起下载：" + path + "（服务端缓存在 /data/downloads/）");
     }
 
-    async function deleteEntry(e) {
-      const what = (e.is_dir ? "目录" : "对象") + "：" + e.path;
-      if (!confirm("确认删除" + what + "？\n（目录只删除该 prefix 自身的对象，不会递归）")) return;
-      setLoading(true);
-      const data = await callJson("POST", "/api/delete?path=" + encodeURIComponent(e.path));
-      setLoading(false);
+    function askDelete(entry) {
+      state.pendingDelete = entry;
+      const expected = entry.is_dir ? entry.name + "/" : entry.name;
+      $("delete-target").textContent = entry.path;
+      $("delete-name").textContent = expected;
+      $("delete-input").value = "";
+      $("delete-confirm").disabled = true;
+      $("delete-modal").showModal();
+      setTimeout(() => $("delete-input").focus(), 0);
+    }
+
+    async function confirmDelete() {
+      const entry = state.pendingDelete;
+      if (!entry) return;
+      $("delete-modal").close();
+      state.pendingDelete = null;
+      const data = await callJson("POST", "/api/delete?path=" + encodeURIComponent(entry.path));
       setRaw(data);
       if (data.success === false) {
         showStatus("err", data.error || "删除失败");
         return;
       }
-      await navigate(state.path);
+      await doNavigate(state.path);
     }
 
+    function cancelDelete() {
+      $("delete-modal").close();
+      state.pendingDelete = null;
+    }
+
+    // =================================================================
+    // 新建目录
+    // =================================================================
     async function mkdir() {
       if (!state.path) {
         showStatus("err", "请先进入某个 bucket / 目录，再创建子目录");
@@ -534,49 +786,259 @@
         return;
       }
       const target = state.path + name + "/";
-      setLoading(true);
       const data = await callJson("POST", "/api/mkdir?path=" + encodeURIComponent(target));
-      setLoading(false);
       setRaw(data);
       if (data.success === false) {
         showStatus("err", data.error || "创建失败");
         return;
       }
-      await navigate(state.path);
+      await doNavigate(state.path);
     }
 
-    async function uploadFile(file) {
+    // =================================================================
+    // 上传：XHR + 浏览器→服务器进度
+    // =================================================================
+    function uploadFile(file) {
       if (!state.path) {
         showStatus("err", "请先进入某个 bucket / 目录再上传");
         return;
       }
+      const localId = "local-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6);
+      state.localUploads.set(localId, {
+        name: file.name,
+        loaded: 0,
+        total: file.size,
+        phase: "browser",
+      });
+      renderTaskPanel();
+
+      const xhr = new XMLHttpRequest();
+      state.localUploads.get(localId).xhr = xhr;
+
+      xhr.upload.onprogress = (e) => {
+        const obj = state.localUploads.get(localId);
+        if (!obj || !e.lengthComputable) return;
+        obj.loaded = e.loaded;
+        obj.total = e.total;
+        renderTaskPanel();
+      };
+      xhr.onload = () => {
+        state.localUploads.delete(localId);
+        let data;
+        try { data = JSON.parse(xhr.responseText); }
+        catch { data = { success: false, error: "non-JSON response" }; }
+        if (data.success === false) {
+          showStatus("err", data.error || data.detail || "上传请求失败");
+        }
+        // 之后由 /api/tasks 轮询接管「服务器→TOS」阶段
+        renderTaskPanel();
+      };
+      xhr.onerror = () => {
+        state.localUploads.delete(localId);
+        showStatus("err", "上传网络错误");
+        renderTaskPanel();
+      };
+      xhr.onabort = () => {
+        state.localUploads.delete(localId);
+        renderTaskPanel();
+      };
+
       const fd = new FormData();
       fd.append("file", file);
-      setLoading(true);
-      showStatus("info", "上传中：" + file.name + " → " + state.path);
-      const data = await callJson(
-        "POST",
-        "/api/upload?path=" + encodeURIComponent(state.path),
-        { body: fd },
-      );
-      setLoading(false);
-      setRaw(data);
-      if (data.success === false) {
-        showStatus("err", data.error || "上传失败");
-        return;
-      }
-      await navigate(state.path);
+      xhr.open("POST", "/api/upload?path=" + encodeURIComponent(state.path));
+      xhr.send(fd);
     }
 
-    // ---------------------------------------------------------------------
+    // =================================================================
+    // 任务面板（轮询 /api/tasks）
+    // =================================================================
+    const TASK_POLL_MS = 700;
+    const TASK_FADE_AFTER_MS = 5000;
+
+    async function pollTasks() {
+      const data = await callJson("GET", "/api/tasks");
+      if (data.success !== false && Array.isArray(data.tasks)) {
+        for (const task of data.tasks) {
+          const prev = state.tasks.get(task.id);
+          state.tasks.set(task.id, task);
+          // 状态变化时触发副作用
+          if (!prev || prev.state !== task.state) {
+            handleTaskTransition(prev, task);
+          }
+        }
+      }
+      renderTaskPanel();
+    }
+
+    function handleTaskTransition(prev, task) {
+      if (task.state === "done") {
+        if (task.kind === "dirsize") {
+          applyDirSizeResult(task.id, task);
+        } else if (task.kind === "download") {
+          triggerBrowserDownload(task.id, task.name);
+        } else if (task.kind === "upload") {
+          if (!state.uploadRefreshed.has(task.id)) {
+            state.uploadRefreshed.add(task.id);
+            // 异步刷新，不阻塞轮询
+            doNavigate(state.path);
+          }
+        }
+      } else if (task.state === "error") {
+        if (task.kind === "dirsize") {
+          applyDirSizeResult(task.id, task);
+        }
+      }
+    }
+
+    function renderTaskPanel() {
+      const panel = $("task-panel");
+      panel.innerHTML = "";
+      const now = Date.now() / 1000;
+
+      // 本地（浏览器→服务器）上传卡片
+      for (const [id, obj] of state.localUploads) {
+        panel.appendChild(renderLocalUploadCard(id, obj));
+      }
+
+      // 后端任务，按 started_at 倒序
+      const all = Array.from(state.tasks.values());
+      all.sort((a, b) => (b.started_at || 0) - (a.started_at || 0));
+      for (const task of all) {
+        // 终态超过 N 秒就从 UI 移除（后端仍保留）
+        if (["done", "error", "cancelled"].includes(task.state)) {
+          const finished = task.finished_at || task.started_at;
+          if (finished && (now - finished) * 1000 > TASK_FADE_AFTER_MS) {
+            // 同时让后端 dismiss 一次（best-effort）
+            callJson("DELETE", `/api/task/${encodeURIComponent(task.id)}`);
+            state.tasks.delete(task.id);
+            continue;
+          }
+        }
+        panel.appendChild(renderBackendTaskCard(task));
+      }
+    }
+
+    function kindIcon(kind) {
+      return { upload: "⬆", download: "⬇", dirsize: "📐" }[kind] || "•";
+    }
+
+    function renderBackendTaskCard(task) {
+      const card = document.createElement("div");
+      card.className = "task-card";
+
+      const head = document.createElement("div");
+      head.className = "task-head";
+      head.innerHTML =
+        `<span class="task-kind">${kindIcon(task.kind)}</span>` +
+        `<span class="task-name" title="${escapeHtml(task.path)}">${escapeHtml(task.name)}</span>` +
+        `<span class="task-state ${task.state}">${task.state}</span>`;
+      const close = document.createElement("button");
+      close.className = "task-close";
+      close.title = task.state === "running" ? "取消" : "关闭";
+      close.textContent = "✕";
+      close.addEventListener("click", async () => {
+        await callJson("DELETE", `/api/task/${encodeURIComponent(task.id)}`);
+        state.tasks.delete(task.id);
+        renderTaskPanel();
+      });
+      head.appendChild(close);
+
+      const bar = document.createElement("div");
+      bar.className = "task-bar";
+      const fill = document.createElement("div");
+      if (task.state === "done")     { bar.classList.add("done");  fill.style.width = "100%"; }
+      else if (task.state === "error" || task.state === "cancelled") {
+        bar.classList.add("error"); fill.style.width = "100%";
+      } else if (task.progress != null) {
+        fill.style.width = (task.progress * 100).toFixed(1) + "%";
+      } else {
+        bar.classList.add("indeterminate");
+      }
+      bar.appendChild(fill);
+
+      const meta = document.createElement("div");
+      meta.className = "task-meta";
+      const leftBits = [];
+      if (task.progress != null) leftBits.push((task.progress * 100).toFixed(0) + "%");
+      if (task.bytes_done != null && task.bytes_total != null) {
+        leftBits.push(fmtSize(task.bytes_done) + " / " + fmtSize(task.bytes_total));
+      }
+      if (task.kind === "dirsize" && task.state === "done" && task.result) {
+        leftBits.push(fmtSize(task.result.bytes) + (task.result.objects != null ? ` · ${task.result.objects}` : ""));
+      }
+      const left = document.createElement("span");
+      left.textContent = leftBits.join("  ");
+      const right = document.createElement("span");
+      if (task.state === "error" && task.error) {
+        right.className = "err";
+        right.title = task.error;
+        right.textContent = task.error;
+      } else if (task.speed) {
+        right.textContent = task.speed;
+      } else if (task.message) {
+        right.title = task.message;
+        right.textContent = task.message.length > 32 ? task.message.slice(-32) : task.message;
+      }
+      meta.appendChild(left);
+      meta.appendChild(right);
+
+      card.appendChild(head);
+      card.appendChild(bar);
+      card.appendChild(meta);
+      return card;
+    }
+
+    function renderLocalUploadCard(id, obj) {
+      const card = document.createElement("div");
+      card.className = "task-card";
+
+      const head = document.createElement("div");
+      head.className = "task-head";
+      head.innerHTML =
+        `<span class="task-kind">⬆</span>` +
+        `<span class="task-name">${escapeHtml(obj.name)} → 服务器</span>` +
+        `<span class="task-state running">uploading</span>`;
+      const close = document.createElement("button");
+      close.className = "task-close";
+      close.title = "中止";
+      close.textContent = "✕";
+      close.addEventListener("click", () => {
+        try { obj.xhr && obj.xhr.abort(); } catch { /* ignore */ }
+        state.localUploads.delete(id);
+        renderTaskPanel();
+      });
+      head.appendChild(close);
+
+      const bar = document.createElement("div");
+      bar.className = "task-bar";
+      const fill = document.createElement("div");
+      const pct = obj.total > 0 ? (obj.loaded / obj.total) : 0;
+      fill.style.width = (pct * 100).toFixed(1) + "%";
+      bar.appendChild(fill);
+
+      const meta = document.createElement("div");
+      meta.className = "task-meta";
+      meta.innerHTML =
+        `<span>${(pct * 100).toFixed(0)}%  ${fmtSize(obj.loaded)} / ${fmtSize(obj.total)}</span>` +
+        `<span>浏览器 → 服务器</span>`;
+
+      card.appendChild(head);
+      card.appendChild(bar);
+      card.appendChild(meta);
+      return card;
+    }
+
+    // =================================================================
     // 绑定
-    // ---------------------------------------------------------------------
-    $("btn-go").addEventListener("click", () => navigate($("addr").value.trim()));
+    // =================================================================
+    $("btn-back").addEventListener("click", back);
+    $("btn-forward").addEventListener("click", forward);
+    $("btn-up").addEventListener("click", () => go(parentPath(state.path)));
+    $("btn-refresh").addEventListener("click", () => doNavigate(state.path));
+    $("btn-go").addEventListener("click", () => go($("addr").value.trim()));
     $("addr").addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter") navigate($("addr").value.trim());
+      if (ev.key === "Enter") go($("addr").value.trim());
     });
-    $("btn-up").addEventListener("click", () => navigate(parentPath(state.path)));
-    $("btn-refresh").addEventListener("click", () => navigate(state.path));
     $("btn-mkdir").addEventListener("click", () => mkdir());
     $("upload-file").addEventListener("change", (ev) => {
       const f = ev.target.files[0];
@@ -584,8 +1046,31 @@
       ev.target.value = "";
     });
 
-    // 初始：列出 buckets
-    navigate("");
+    // 删除模态
+    $("delete-input").addEventListener("input", () => {
+      const entry = state.pendingDelete;
+      if (!entry) return;
+      const expected = entry.is_dir ? entry.name + "/" : entry.name;
+      $("delete-confirm").disabled = $("delete-input").value !== expected;
+    });
+    $("delete-input").addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && !$("delete-confirm").disabled) confirmDelete();
+    });
+    $("delete-confirm").addEventListener("click", confirmDelete);
+    $("delete-cancel").addEventListener("click", cancelDelete);
+    $("delete-modal").addEventListener("close", () => { state.pendingDelete = null; });
+
+    // 键盘快捷键：Alt+← / Alt+→（覆盖浏览器自带的 history 后退/前进）
+    document.addEventListener("keydown", (ev) => {
+      if (!ev.altKey || ev.metaKey || ev.ctrlKey) return;
+      if (ev.key === "ArrowLeft")  { ev.preventDefault(); back();    }
+      if (ev.key === "ArrowRight") { ev.preventDefault(); forward(); }
+    });
+
+    // 启动
+    renderNavButtons();
+    doNavigate("");
+    setInterval(pollTasks, TASK_POLL_MS);
   </script>
 </body>
 </html>
