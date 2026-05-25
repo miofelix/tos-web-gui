@@ -165,10 +165,11 @@ def api_mkdir(path: str = Query(..., description="要创建的 tos:// 目录")) 
 # ---------------------------------------------------------------------------
 
 def _apply_progress_line(task_id: str, line: str) -> None:
-    """从 tosutil 一行输出里抽 %、速度、bytes，写回 task。"""
+    """从 tosutil 一行输出里抽 %、速度、bytes，写回 task，并入终端日志。"""
     t = tasks.get(task_id)
     if t is None:
         return
+    tasks.append_log(task_id, line)
     t.message = line[:240]
 
     m = tosutil.PROGRESS_PERCENT_RE.search(line)
@@ -345,6 +346,71 @@ async def _run_download(task_id: str, remote: str, local: str) -> None:
         )
 
 
+@app.post("/api/download_dir/start")
+async def api_download_dir_start(
+    path: str = Query(..., description="tos:// 目录路径（递归下载）"),
+) -> JSONResponse:
+    """
+    启动后台目录下载任务，返回 task_id。
+
+    目录会被 `tosutil cp -r` 递归拉到 /data/downloads/<dir_name>/；
+    不打包、不流回浏览器，用户从挂载的 /data/downloads/ 自取。
+    """
+    try:
+        tosutil.validate_tos_path(path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    normalized = path if path.endswith("/") else path + "/"
+    dir_name = normalized.rstrip("/").rsplit("/", 1)[-1]
+    if not dir_name or dir_name == "tos:":
+        raise HTTPException(status_code=400, detail="cannot determine directory name")
+    try:
+        safe_name = tosutil._safe_basename(dir_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    local_path = DOWNLOAD_DIR / safe_name
+    task = tasks.create(TaskKind.DOWNLOAD_DIR, normalized, name=safe_name + "/")
+    task.local_path = str(local_path)
+    asyncio.create_task(_run_download_dir(task.id, normalized, str(local_path)))
+    return _ok({"task_id": task.id, "task": tasks.to_dict(task)})
+
+
+async def _run_download_dir(task_id: str, remote: str, local: str) -> None:
+    tasks.update(task_id, state=TaskState.RUNNING.value, message="启动 tosutil cp -r")
+    Path(local).mkdir(parents=True, exist_ok=True)
+    try:
+        rc = await tosutil.stream_tosutil(
+            ["cp", "-r", remote, local],
+            lambda line: _apply_progress_line(task_id, line),
+            on_process=_bind_process(task_id),
+        )
+    except asyncio.CancelledError:
+        tasks.mark_terminal(task_id, TaskState.CANCELLED, message="已取消")
+        raise
+    except Exception as exc:
+        tasks.mark_terminal(task_id, TaskState.ERROR, error=f"{type(exc).__name__}: {exc}")
+        return
+
+    if _is_cancelled(task_id):
+        return
+    if rc == 0:
+        tasks.mark_terminal(
+            task_id,
+            TaskState.DONE,
+            progress=1.0,
+            message=f"已下载到 {local}",
+            local_path=local,
+        )
+    else:
+        tasks.mark_terminal(
+            task_id,
+            TaskState.ERROR,
+            error=f"tosutil exited {rc}",
+        )
+
+
 @app.get("/api/download/{task_id}/file")
 def api_download_file(task_id: str):
     t = tasks.get(task_id)
@@ -389,6 +455,7 @@ async def _run_dirsize(task_id: str, path: str) -> None:
 
     def on_line(line: str) -> None:
         lines.append(line)
+        tasks.append_log(task_id, line)
         t = tasks.get(task_id)
         if t is not None:
             t.message = line[:240]

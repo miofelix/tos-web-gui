@@ -19,6 +19,7 @@ from typing import Any
 class TaskKind(str, Enum):
     UPLOAD = "upload"
     DOWNLOAD = "download"
+    DOWNLOAD_DIR = "download_dir"
     DIRSIZE = "dirsize"
 
 
@@ -51,6 +52,10 @@ class Task:
     started_at: float = field(default_factory=time.time)
     finished_at: float | None = None
 
+    # 终端样式日志：tosutil 的 stdout/stderr 帧按时间顺序追加。
+    # 给前端「像终端一样的进度面板」用。长度受 _LOG_MAX 约束。
+    log_lines: list[str] = field(default_factory=list)
+
     # 内部：subprocess 句柄，用于 cancel。不序列化。
     _process: Any = None
 
@@ -59,6 +64,10 @@ class Task:
 _TASKS: dict[str, Task] = {}
 # 已完成任务的最大保留条数；超出后按完成时间淘汰
 _MAX_RETAIN = 100
+# 每个任务保留的日志行上限（防内存泄漏）
+_LOG_MAX = 300
+# 序列化给前端的尾部行数
+_LOG_TAIL = 80
 
 
 def create(kind: TaskKind | str, path: str, name: str | None = None) -> Task:
@@ -133,8 +142,19 @@ def dismiss(task_id: str) -> bool:
     return True
 
 
+def append_log(task_id: str, line: str) -> None:
+    """把一行 tosutil 输出追加到任务日志，超出上限时丢最早的。"""
+    t = _TASKS.get(task_id)
+    if t is None:
+        return
+    t.log_lines.append(line)
+    if len(t.log_lines) > _LOG_MAX:
+        # 一次切掉一段，避免每行都 pop(0)
+        t.log_lines = t.log_lines[-_LOG_MAX:]
+
+
 def to_dict(t: Task) -> dict[str, Any]:
-    """序列化给前端用（剔除 _process）。"""
+    """序列化给前端用（剔除 _process，log 只回末尾 N 行）。"""
     return {
         "id": t.id,
         "kind": t.kind,
@@ -151,6 +171,7 @@ def to_dict(t: Task) -> dict[str, Any]:
         "local_path": t.local_path,
         "started_at": t.started_at,
         "finished_at": t.finished_at,
+        "log_tail": t.log_lines[-_LOG_TAIL:],
     }
 
 

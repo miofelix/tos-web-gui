@@ -31,8 +31,21 @@ RUN if [ -f uv.lock ]; then \
 # 项目代码。
 COPY app ./app
 
-# 项目根目录里必须放一份可执行的 tosutil 二进制（用户自备）。
-COPY tosutil /usr/local/bin/tosutil
+# tosutil 二进制（用户自备）。两种用法：
+#
+# 1) 多架构发布（默认）：把对应 Linux 平台的二进制按下面命名放到 tosutils/：
+#       tosutils/tosutil-Linux-amd64bit
+#       tosutils/tosutil-Linux-arm64bit
+#    然后一条 buildx 就能出 multi-arch manifest：
+#       docker buildx build --platform linux/amd64,linux/arm64 \
+#         -t miofelix/tos-web-gui:0.1.0 -t miofelix/tos-web-gui:latest --push .
+#    BuildKit 注入的 TARGETARCH 会让每个 platform 自动选对应那份。
+#
+# 2) 单架构快速构建：把对应平台的 tosutil 放到根目录 ./tosutil，
+#    然后传 --build-arg TOSUTIL_PATH=tosutil 覆盖默认。
+ARG TARGETARCH
+ARG TOSUTIL_PATH=tosutils/tosutil-Linux-${TARGETARCH}bit
+COPY ${TOSUTIL_PATH} /usr/local/bin/tosutil
 RUN chmod +x /usr/local/bin/tosutil
 
 # 数据目录：上传缓冲 + 下载落地。建议挂载持久卷到 /data。

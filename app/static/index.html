@@ -90,6 +90,18 @@
     button.ghost { background: transparent; border-color: transparent; padding: 4px 8px; }
     button.ghost:hover { background: var(--border-soft); }
 
+    /* 刷新按钮：导航栏的高频操作，单独放大作为视觉重点 */
+    #btn-refresh {
+      font-size: 17px;
+      line-height: 1;
+      padding: 6px 10px;
+      border-radius: 8px;
+    }
+    #btn-refresh:hover {
+      background: var(--accent-bg);
+      color: var(--accent);
+    }
+
     .crumbs {
       display: flex;
       align-items: center;
@@ -168,6 +180,12 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 12.5px;
     }
+    td.size .size-calc {
+      color: var(--accent);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    td.size .size-calc:hover { text-decoration: underline; }
     td.actions {
       text-align: right;
     }
@@ -242,8 +260,9 @@
       position: fixed;
       right: 16px;
       bottom: 16px;
-      width: 360px;
-      max-height: 60vh;
+      width: 520px;
+      max-width: calc(100vw - 32px);
+      max-height: 70vh;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
@@ -334,6 +353,27 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    /* 终端风格的实时日志：复刻直接跑 tosutil cp -r 的观感 */
+    .task-log {
+      margin: 6px 0 0;
+      padding: 8px 10px;
+      background: #0d1117;
+      color: #e6edf3;
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11.5px;
+      line-height: 1.45;
+      max-height: 168px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .task-log .ln-last {
+      color: #7ee787;  /* tosutil 进度行高亮：最新一帧 */
+    }
+    .task-log .ln-err {
+      color: #ff7b72;
+    }
 
     /* ----- 删除模态 ----- */
     dialog#delete-modal {
@@ -391,9 +431,11 @@
       <button class="ghost" id="btn-back"    title="后退 (Alt+←)">◀</button>
       <button class="ghost" id="btn-forward" title="前进 (Alt+→)">▶</button>
       <button class="ghost" id="btn-up"      title="返回上级">⬆</button>
+      <button class="ghost" id="btn-home"    title="进入主目录">🏠</button>
+      <button class="ghost" id="btn-set-home" title="把当前目录设为主目录">★</button>
       <button class="ghost" id="btn-refresh" title="刷新">⟳</button>
       <input id="addr" class="grow" type="text" placeholder="tos://bucket/path/  (留空 = 列出 buckets)" />
-      <button id="btn-go">Go</button>
+      <button id="btn-go" title="前往左侧输入框中的路径 (Enter)">Go</button>
     </div>
     <div class="row">
       <div id="crumbs" class="crumbs grow"></div>
@@ -436,8 +478,8 @@
     <p>请键入 <strong id="delete-name"></strong> 以确认：</p>
     <input id="delete-input" autocomplete="off" autocapitalize="off" spellcheck="false" />
     <div class="modal-actions">
-      <button id="delete-cancel" value="cancel">取消</button>
-      <button id="delete-confirm" class="danger" disabled>永久删除</button>
+      <button id="delete-cancel" value="cancel" title="关闭弹窗，不删除 (Esc)">取消</button>
+      <button id="delete-confirm" class="danger" disabled title="不可恢复地删除该对象 (Enter)">永久删除</button>
     </div>
   </dialog>
 
@@ -550,6 +592,60 @@
       $("btn-back").disabled    = state.history.idx <= 0;
       $("btn-forward").disabled = state.history.idx >= state.history.stack.length - 1;
       $("btn-up").disabled      = !state.path;
+      renderHomeButtons();
+    }
+
+    // ----- 主目录 (持久化到 localStorage) -----
+    const HOME_KEY = "tosWebGui.home";
+
+    function getHome() {
+      try { return localStorage.getItem(HOME_KEY) || ""; }
+      catch { return ""; }
+    }
+    function setHomeValue(path) {
+      try {
+        if (path) localStorage.setItem(HOME_KEY, path);
+        else localStorage.removeItem(HOME_KEY);
+      } catch { /* 隐私模式等忽略 */ }
+    }
+
+    function renderHomeButtons() {
+      const home = getHome();
+      const btnHome = $("btn-home");
+      const btnSet  = $("btn-set-home");
+
+      btnHome.disabled = !home;
+      btnHome.title = home ? `进入主目录 ${home}` : "尚未设置主目录（先用 ★ 设定）";
+
+      const isCurrentHome = !!home && (state.path || "") === home;
+      btnSet.textContent = isCurrentHome ? "✦" : "★";
+      btnSet.title = isCurrentHome
+        ? `当前目录已是主目录（点击取消）`
+        : `把当前目录设为主目录 ${state.path ? `（${state.path}）` : "（请先进入某个目录）"}`;
+      btnSet.disabled = !state.path && !isCurrentHome;
+    }
+
+    function goHome() {
+      const home = getHome();
+      if (!home) return;
+      go(home);
+    }
+
+    function toggleHome() {
+      const home = getHome();
+      const cur = state.path || "";
+      if (home && cur === home) {
+        setHomeValue("");
+        showStatus("info", "已取消主目录");
+      } else {
+        if (!cur) {
+          showStatus("err", "请先进入某个目录再设为主目录");
+          return;
+        }
+        setHomeValue(cur);
+        showStatus("info", `已把 ${cur} 设为主目录，下次打开/刷新会自动进入`);
+      }
+      renderHomeButtons();
     }
 
     function go(path, { push = true } = {}) {
@@ -644,7 +740,17 @@
         // Size
         const tdSize = document.createElement("td");
         tdSize.className = "size";
-        tdSize.textContent = e.is_dir ? "—" : fmtSize(e.size);
+        if (e.is_dir) {
+          // 目录：Size 列本身就是「点我计算」的触发器，避免 Actions 列额外按钮
+          const calc = document.createElement("a");
+          calc.className = "size-calc";
+          calc.textContent = "计算";
+          calc.title = "点击递归扫描该目录、累加大小";
+          calc.addEventListener("click", (ev) => { ev.stopPropagation(); startDirSize(e, tr); });
+          tdSize.appendChild(calc);
+        } else {
+          tdSize.textContent = fmtSize(e.size);
+        }
 
         // Modified
         const tdMtime = document.createElement("td");
@@ -655,21 +761,20 @@
         const tdActions = document.createElement("td");
         tdActions.className = "actions";
 
+        const dl = document.createElement("button");
+        dl.className = "ghost";
         if (e.is_dir) {
-          const du = document.createElement("button");
-          du.className = "ghost";
-          du.title = "计算目录大小 (tosutil du)";
-          du.textContent = "📐";
-          du.addEventListener("click", (ev) => { ev.stopPropagation(); startDirSize(e, tr); });
-          tdActions.appendChild(du);
+          dl.title = "递归下载该目录到服务端 /data/downloads/";
         } else {
-          const dl = document.createElement("button");
-          dl.className = "ghost";
           dl.title = "下载";
-          dl.textContent = "⬇";
-          dl.addEventListener("click", (ev) => { ev.stopPropagation(); startDownload(e); });
-          tdActions.appendChild(dl);
         }
+        dl.textContent = "⬇";
+        dl.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (e.is_dir) startDownloadDir(e);
+          else          startDownload(e);
+        });
+        tdActions.appendChild(dl);
 
         const del = document.createElement("button");
         del.className = "danger";
@@ -726,6 +831,16 @@
         showStatus("err", data.error || "无法启动下载");
       }
       // 进度与触发下载都由任务面板轮询接管
+    }
+
+    async function startDownloadDir(entry) {
+      const data = await callJson("POST", "/api/download_dir/start?path=" + encodeURIComponent(entry.path));
+      if (data.success === false || !data.task_id) {
+        showStatus("err", data.error || "无法启动目录下载");
+        return;
+      }
+      // 立刻给个 info，免得用户以为没反应（后台 tosutil cp -r 可能要一会儿才出 log）
+      showStatus("info", `开始递归下载 ${entry.path} 到服务端 /data/downloads/${entry.name}/`);
     }
 
     function triggerBrowserDownload(taskId, name) {
@@ -876,6 +991,9 @@
           applyDirSizeResult(task.id, task);
         } else if (task.kind === "download") {
           triggerBrowserDownload(task.id, task.name);
+        } else if (task.kind === "download_dir") {
+          // 目录下载不打包不弹浏览器下载，只在状态条提示落地位置
+          showStatus("info", `目录已下载到服务端 ${task.local_path || "/data/downloads/"}`);
         } else if (task.kind === "upload") {
           if (!state.uploadRefreshed.has(task.id)) {
             state.uploadRefreshed.add(task.id);
@@ -890,8 +1008,38 @@
       }
     }
 
+    // task_id -> { stuck: bool }；用于在 700ms 整面重渲后维持终端样式的「贴底」体验
+    const taskLogState = new Map();
+
+    function snapshotLogScroll() {
+      const panel = $("task-panel");
+      panel.querySelectorAll(".task-card[data-task-id]").forEach((card) => {
+        const id = card.dataset.taskId;
+        const pre = card.querySelector(".task-log");
+        if (!pre) return;
+        const slack = 8;
+        const stuck = (pre.scrollTop + pre.clientHeight + slack) >= pre.scrollHeight;
+        taskLogState.set(id, { stuck });
+      });
+    }
+
+    function restoreLogScroll() {
+      const panel = $("task-panel");
+      panel.querySelectorAll(".task-card[data-task-id]").forEach((card) => {
+        const id = card.dataset.taskId;
+        const pre = card.querySelector(".task-log");
+        if (!pre) return;
+        const st = taskLogState.get(id);
+        // 默认贴底；只有用户明确上滑过才保持不动（用 sentinel scrollTop=0）
+        if (!st || st.stuck) {
+          pre.scrollTop = pre.scrollHeight;
+        }
+      });
+    }
+
     function renderTaskPanel() {
       const panel = $("task-panel");
+      snapshotLogScroll();
       panel.innerHTML = "";
       const now = Date.now() / 1000;
 
@@ -903,6 +1051,7 @@
       // 后端任务，按 started_at 倒序
       const all = Array.from(state.tasks.values());
       all.sort((a, b) => (b.started_at || 0) - (a.started_at || 0));
+      const liveIds = new Set();
       for (const task of all) {
         // 终态超过 N 秒就从 UI 移除（后端仍保留）
         if (["done", "error", "cancelled"].includes(task.state)) {
@@ -911,20 +1060,28 @@
             // 同时让后端 dismiss 一次（best-effort）
             callJson("DELETE", `/api/task/${encodeURIComponent(task.id)}`);
             state.tasks.delete(task.id);
+            taskLogState.delete(task.id);
             continue;
           }
         }
+        liveIds.add(task.id);
         panel.appendChild(renderBackendTaskCard(task));
       }
+      // 清理已不存在的任务的 scroll 状态
+      for (const id of taskLogState.keys()) {
+        if (!liveIds.has(id)) taskLogState.delete(id);
+      }
+      restoreLogScroll();
     }
 
     function kindIcon(kind) {
-      return { upload: "⬆", download: "⬇", dirsize: "📐" }[kind] || "•";
+      return { upload: "⬆", download: "⬇", download_dir: "📥", dirsize: "📐" }[kind] || "•";
     }
 
     function renderBackendTaskCard(task) {
       const card = document.createElement("div");
       card.className = "task-card";
+      card.dataset.taskId = task.id;
 
       const head = document.createElement("div");
       head.className = "task-head";
@@ -969,15 +1126,12 @@
       const left = document.createElement("span");
       left.textContent = leftBits.join("  ");
       const right = document.createElement("span");
-      if (task.state === "error" && task.error) {
+      if (task.speed) {
+        right.textContent = task.speed;
+      } else if (task.state === "error" && task.error) {
         right.className = "err";
         right.title = task.error;
         right.textContent = task.error;
-      } else if (task.speed) {
-        right.textContent = task.speed;
-      } else if (task.message) {
-        right.title = task.message;
-        right.textContent = task.message.length > 32 ? task.message.slice(-32) : task.message;
       }
       meta.appendChild(left);
       meta.appendChild(right);
@@ -985,7 +1139,31 @@
       card.appendChild(head);
       card.appendChild(bar);
       card.appendChild(meta);
+
+      const log = renderTaskLog(task);
+      if (log) card.appendChild(log);
       return card;
+    }
+
+    function renderTaskLog(task) {
+      const lines = Array.isArray(task.log_tail) ? task.log_tail : [];
+      const hasErr = task.state === "error" && task.error;
+      if (!lines.length && !hasErr) return null;
+
+      const pre = document.createElement("pre");
+      pre.className = "task-log";
+
+      const parts = [];
+      for (let i = 0; i < lines.length; i++) {
+        const cls = i === lines.length - 1 ? " ln-last" : "";
+        parts.push(`<span class="ln${cls}">${escapeHtml(lines[i])}</span>`);
+      }
+      if (hasErr) {
+        parts.push(`<span class="ln ln-err">${escapeHtml(task.error)}</span>`);
+      }
+      pre.innerHTML = parts.join("\n");
+      // 贴底逻辑由外层 restoreLogScroll 统一处理
+      return pre;
     }
 
     function renderLocalUploadCard(id, obj) {
@@ -1034,6 +1212,8 @@
     $("btn-back").addEventListener("click", back);
     $("btn-forward").addEventListener("click", forward);
     $("btn-up").addEventListener("click", () => go(parentPath(state.path)));
+    $("btn-home").addEventListener("click", goHome);
+    $("btn-set-home").addEventListener("click", toggleHome);
     $("btn-refresh").addEventListener("click", () => doNavigate(state.path));
     $("btn-go").addEventListener("click", () => go($("addr").value.trim()));
     $("addr").addEventListener("keydown", (ev) => {
@@ -1067,9 +1247,19 @@
       if (ev.key === "ArrowRight") { ev.preventDefault(); forward(); }
     });
 
-    // 启动
+    // 启动：如设了主目录，刷新/打开默认进入；否则照旧列 bucket
     renderNavButtons();
-    doNavigate("");
+    (function bootstrap() {
+      const home = getHome();
+      if (home) {
+        // 让历史栈的起点就是主目录，避免「后退」回到一个空白根
+        state.history.stack = [home];
+        state.history.idx = 0;
+        doNavigate(home);
+      } else {
+        doNavigate("");
+      }
+    })();
     setInterval(pollTasks, TASK_POLL_MS);
   </script>
 </body>

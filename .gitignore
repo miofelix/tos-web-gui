@@ -21,6 +21,7 @@ venv/
 
 # tosutil 二进制由用户自备，不入库
 /tosutil
+/tosutils/
 
 # tosutil 凭证绝对不入库
 .tosutilconfig

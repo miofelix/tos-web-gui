@@ -122,6 +122,10 @@ def list_dir(path: str) -> dict:
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _TIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
 _TZ_RE = re.compile(r"^[+-]\d{4}$")
+# ISO 8601 单 token，如 `2026-03-26T06:47:00Z` / `2026-03-26T06:47:00+0800`
+_ISO_DATETIME_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:?\d{2})?$"
+)
 
 # size token：支持纯整数、带千分位逗号、带 B/KB/MB/GB/TB(+iB) 单位的小数。
 _SIZE_TOKEN_RE = re.compile(
@@ -166,28 +170,74 @@ def _try_size(tok: str) -> int | None:
     return int(num * mult)
 
 
+def _merge_wrapped_lines(raw_lines: list[str]) -> list[str]:
+    """
+    tosutil 对很长的 key 会把它单独放一行，下一行才是 metadata（date/size/class/etag）。
+    这里把这种「URL-only + metadata-only」的相邻两行合并成一行，便于后续单行解析。
+    """
+    out: list[str] = []
+    i = 0
+    n = len(raw_lines)
+    while i < n:
+        line = raw_lines[i]
+        stripped = line.strip()
+        if not stripped:
+            i += 1
+            continue
+        tokens = stripped.split()
+        # 候选：单 token 的 file URL（目录以 / 结尾，不会换行）
+        is_lone_file_url = (
+            len(tokens) == 1
+            and tokens[0].startswith("tos://")
+            and not tokens[0].endswith("/")
+            and i + 1 < n
+        )
+        if is_lone_file_url:
+            nxt = raw_lines[i + 1].strip()
+            nxt_tokens = nxt.split()
+            # 下一行必须有内容、且不含另一个 URL，才认作 metadata-only 续行
+            if nxt_tokens and not any(t.startswith("tos://") for t in nxt_tokens):
+                out.append(tokens[0] + " " + nxt)
+                i += 2
+                continue
+        out.append(line)
+        i += 1
+    return out
+
+
 def parse_listing(text: str, base_path: str) -> list[dict[str, Any]]:
     """
     解析 `tosutil ls -d <base>` 的输出。
 
-    每行的格式形如：
-        2024-01-15 10:30:45 +0800   1024   <etag>   STANDARD   tos://bucket/dir/file.txt
-        <空白...>                                                tos://bucket/dir/subdir/
+    输出格式在不同 tosutil 版本里有差异，这里兼容两种主流形态：
+
+    形态 A（URL 在行首，ISO 时间，带单位 size）：
+        tos://bkt/dir/file.zip   2026-03-26T06:47:00Z   32.03GB  STANDARD  "<etag>"
+        tos://bkt/dir/sub/
+
+        Folder list:   /  Object list:   /  Folder number is: N   等节标题/统计行
+        会因为不含 tos:// 自然被忽略。
+
+        长 key 会被 tosutil 换行成两行（URL 一行 + metadata 一行），
+        _merge_wrapped_lines 会把它们合并回单行后再解析。
+
+    形态 B（URL 在行尾，空格分隔的日期，纯字节数 size）：
+        2024-01-15 10:30:45 +0800   1024   <etag>   STANDARD   tos://bkt/dir/file.txt
 
     解析策略：
-    - 找到行内首个以 `tos://` 开头的 token，作为 URL
-    - URL 必须以 base_path 开头，且只看本层（不含中间斜杠的相对名）
-    - URL 以 `/` 结尾视为子目录；否则视为文件
-    - 文件先在 URL 前的 token 里锚定 YYYY-MM-DD + HH:MM:SS [±TZ]，把它后面的第一个 token
-      尝试解释成 size（支持 `1024` / `1,024` / `1.5MB` / `2 GiB` 等写法）。
-      锚定失败时退而求其次，扫整段 prefix 找第一个能当 size 的 token，避免漏掉。
-    - 含有 `tos://` 之外内容的总计/统计行会被自动忽略
+    - URL token 可以在行内任意位置；其余所有 token 不区分前后，统一进入 metadata 扫描
+    - mtime 优先 ISO 8601 单 token，否则尝试 YYYY-MM-DD + HH:MM:SS [±TZ] 三 token
+    - size 优先取 mtime 之后紧邻的 token；取不到再扫所有 metadata token 找第一个能当 size 的
+    - URL 必须以 base 开头、本层名不含 `/`，否则跳过
     """
     base = base_path if base_path.endswith("/") else base_path + "/"
+
+    merged_lines = _merge_wrapped_lines(text.splitlines())
+
     entries: list[dict[str, Any]] = []
     seen: set[str] = set()
 
-    for raw_line in text.splitlines():
+    for raw_line in merged_lines:
         if not raw_line.strip():
             continue
         tokens = raw_line.split()
@@ -224,31 +274,39 @@ def parse_listing(text: str, base_path: str) -> list[dict[str, Any]]:
 
         size: int | None = None
         mtime: str | None = None
-        if not is_dir and url_idx > 0:
-            prefix = tokens[:url_idx]
 
-            # 1) 锚定 date + time (+tz)，记录 mtime 同时拿到 date 段结束位置
+        if not is_dir:
+            other_tokens = tokens[:url_idx] + tokens[url_idx + 1:]
+
+            # 1) 锚定时间：先试 ISO 8601 单 token，再试 date+time(+tz) 三段
             date_end = -1
-            for i, tok in enumerate(prefix):
+            for j, tok in enumerate(other_tokens):
+                if _ISO_DATETIME_RE.match(tok):
+                    mtime = tok
+                    date_end = j
+                    break
                 if (
                     _DATE_RE.match(tok)
-                    and i + 1 < len(prefix)
-                    and _TIME_RE.match(prefix[i + 1])
+                    and j + 1 < len(other_tokens)
+                    and _TIME_RE.match(other_tokens[j + 1])
                 ):
-                    mtime = f"{tok} {prefix[i + 1]}"
-                    date_end = i + 1
-                    if i + 2 < len(prefix) and _TZ_RE.match(prefix[i + 2]):
-                        mtime = f"{mtime} {prefix[i + 2]}"
-                        date_end = i + 2
+                    mtime = f"{tok} {other_tokens[j + 1]}"
+                    date_end = j + 1
+                    if (
+                        j + 2 < len(other_tokens)
+                        and _TZ_RE.match(other_tokens[j + 2])
+                    ):
+                        mtime = f"{mtime} {other_tokens[j + 2]}"
+                        date_end = j + 2
                     break
 
-            # 2) 优先把 date 之后紧跟的第一个 token 当 size（最常见格式）
-            if date_end >= 0 and date_end + 1 < len(prefix):
-                size = _try_size(prefix[date_end + 1])
+            # 2) 优先把 date 之后紧跟的第一个 token 当 size
+            if date_end >= 0 and date_end + 1 < len(other_tokens):
+                size = _try_size(other_tokens[date_end + 1])
 
-            # 3) 兜底：扫整段 prefix，找首个能解析为 size 的 token
+            # 3) 兜底：扫整段 metadata 找首个能解析为 size 的 token
             if size is None:
-                for tok in prefix:
+                for tok in other_tokens:
                     sz = _try_size(tok)
                     if sz is not None:
                         size = sz
@@ -332,7 +390,11 @@ async def stream_tosutil(
     on_process: Callable[["asyncio.subprocess.Process"], None] | None = None,
 ) -> int:
     """
-    异步启动 tosutil 子进程，把 stdout+stderr 合并后逐行回调给 on_line。
+    异步启动 tosutil 子进程，把 stdout+stderr 合并后逐「帧」回调给 on_line。
+
+    「帧」= 以 \n 或 \r 任一结尾的一段输出。tosutil 在交互式终端会用 \r
+    覆盖同一行做进度刷新（典型的「succeed/failed/total 一行」），用 \n 分隔
+    完整事件。两者都拆出来给 on_line，前端就能拿到接近终端的实时画面。
 
     - 永远 shell=False、参数数组
     - 返回 returncode（非 0 由调用方决定怎么报错）
@@ -349,16 +411,40 @@ async def stream_tosutil(
         on_process(proc)
     try:
         assert proc.stdout is not None
+        buf = bytearray()
         while True:
-            chunk = await proc.stdout.readline()
+            chunk = await proc.stdout.read(4096)
             if not chunk:
                 break
-            line = chunk.decode("utf-8", errors="replace").rstrip()
-            if line:
+            buf.extend(chunk)
+            # 任意 \r 或 \n 都视为帧边界；CRLF 中间的空帧会被 strip 后丢掉
+            while True:
+                nl = buf.find(b"\n")
+                cr = buf.find(b"\r")
+                if nl < 0 and cr < 0:
+                    break
+                if nl < 0:
+                    idx = cr
+                elif cr < 0:
+                    idx = nl
+                else:
+                    idx = min(nl, cr)
+                frame_bytes = bytes(buf[:idx])
+                del buf[: idx + 1]
+                frame = frame_bytes.decode("utf-8", errors="replace").rstrip()
+                if frame:
+                    try:
+                        on_line(frame)
+                    except Exception:
+                        # 进度回调出错不能掀翻子进程读取循环
+                        pass
+        # flush 尾部（如果最后一帧没有终止符）
+        if buf:
+            tail = bytes(buf).decode("utf-8", errors="replace").rstrip()
+            if tail:
                 try:
-                    on_line(line)
+                    on_line(tail)
                 except Exception:
-                    # 进度回调出错不能掀翻子进程读取循环
                     pass
         return await proc.wait()
     except asyncio.CancelledError:
@@ -369,9 +455,20 @@ async def stream_tosutil(
         raise
 
 
-_DU_TOTAL_RE = re.compile(r"total\s*(?:size|bytes)[:：]?\s*(\d+)", re.I)
+# 兼容多种 tosutil 版本的 du 汇总输出。关键样本：
+#   "Total object number:            240989              Total object size:              396.39GB"
+#   "Total Size: 1234"               （老版本简化）
+#   "Total Bytes: 1234"
+#
+# 重点：捕获的值是字符串（可能带 KB/MB/GB/TB 单位），统一交给 _try_size() 换算。
+# 「object」/「storage」/「total」前缀都允许；但「size」「bytes」前必须有 `:`，避免
+# 把列表头 "Object size" 这种没分隔符的列名误匹配。
+_DU_TOTAL_RE = re.compile(
+    r"(?:object\s+|storage\s+|total\s+)*(?:size|bytes)[:：]\s*([0-9][\w.,]*)",
+    re.I,
+)
 _DU_OBJECTS_RE = re.compile(
-    r"(?:object\s*(?:number|count)|total\s*objects?|对象\s*数|总数)\s*(?:is)?\s*[:：]?\s*(\d+)",
+    r"(?:object\s+(?:number|count)|total\s+objects?|对象\s*数|总数)\s*(?:is)?\s*[:：]\s*(\d+)",
     re.I,
 )
 
@@ -380,36 +477,37 @@ def parse_du(text: str) -> dict[str, int | None] | None:
     """
     解析 `tosutil du` 输出，返回 {"bytes": int, "objects": int | None}。
 
-    宽容策略：
-    1. 先正则找 'Total Size:' / 'Total Bytes:' 后的数字
-    2. 同时尝试找对象数
-    3. 都找不到时，把所有 token 里最大的纯数字当总字节数兜底
+    策略：
+    1. `_DU_TOTAL_RE` 抓 'Total ... size: 396.39GB' 的值（带单位），过 `_try_size` 换算字节
+    2. `_DU_OBJECTS_RE` 抓 'Total object number: 240989' 的对象数
+    3. 都用最后一次匹配（典型 du 输出在末尾汇总，避免被中间统计行覆盖）
+    4. 兜底：扫整段文本找所有能解释为 size 的 token，取最大值。仅在 du 输出极简
+       （只有 storage-class 表格、没有 Total 汇总行）时才会触发
+
     解析失败返回 None。
     """
     bytes_total: int | None = None
     objects: int | None = None
-    for line in text.splitlines():
-        m = _DU_TOTAL_RE.search(line)
-        if m and bytes_total is None:
-            try:
-                bytes_total = int(m.group(1))
-            except ValueError:
-                pass
-        m2 = _DU_OBJECTS_RE.search(line)
-        if m2 and objects is None:
-            try:
-                objects = int(m2.group(1))
-            except ValueError:
-                pass
+
+    for m in _DU_TOTAL_RE.finditer(text):
+        candidate = _try_size(m.group(1))
+        if candidate is not None:
+            bytes_total = candidate  # 用最后一次匹配，对应底部汇总行
+
+    for m in _DU_OBJECTS_RE.finditer(text):
+        try:
+            objects = int(m.group(1))
+        except ValueError:
+            pass
 
     if bytes_total is None:
-        nums = []
-        for line in text.splitlines():
-            for tok in line.split():
-                if tok.isdigit():
-                    nums.append(int(tok))
-        if nums:
-            bytes_total = max(nums)
+        candidates: list[int] = []
+        for tok in text.split():
+            sz = _try_size(tok.strip(",.;:"))
+            if sz is not None:
+                candidates.append(sz)
+        if candidates:
+            bytes_total = max(candidates)
 
     if bytes_total is None:
         return None
