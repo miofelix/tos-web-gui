@@ -11,3 +11,8 @@ data/
 README.md
 .tosutilconfig
 *.tosutilconfig
+
+# tosutil 二进制不打进镜像（避免再分发火山引擎的商业软件）。
+# 用户在 docker run 时通过 -v 挂到 /usr/local/bin/tosutil。
+/tosutil
+/tosutils/

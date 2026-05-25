@@ -2,7 +2,13 @@
 name = "tos-web-gui"
 version = "0.1.0"
 description = "Browser-based GUI to manage 火山云 TOS via tosutil subprocess calls."
+readme = "README.md"
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Yu Fan", email = "daniellesry@gmail.com" },
+]
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",

@@ -31,22 +31,11 @@ RUN if [ -f uv.lock ]; then \
 # 项目代码。
 COPY app ./app
 
-# tosutil 二进制（用户自备）。两种用法：
-#
-# 1) 多架构发布（默认）：把对应 Linux 平台的二进制按下面命名放到 tosutils/：
-#       tosutils/tosutil-Linux-amd64bit
-#       tosutils/tosutil-Linux-arm64bit
-#    然后一条 buildx 就能出 multi-arch manifest：
-#       docker buildx build --platform linux/amd64,linux/arm64 \
-#         -t miofelix/tos-web-gui:0.1.0 -t miofelix/tos-web-gui:latest --push .
-#    BuildKit 注入的 TARGETARCH 会让每个 platform 自动选对应那份。
-#
-# 2) 单架构快速构建：把对应平台的 tosutil 放到根目录 ./tosutil，
-#    然后传 --build-arg TOSUTIL_PATH=tosutil 覆盖默认。
-ARG TARGETARCH
-ARG TOSUTIL_PATH=tosutils/tosutil-Linux-${TARGETARCH}bit
-COPY ${TOSUTIL_PATH} /usr/local/bin/tosutil
-RUN chmod +x /usr/local/bin/tosutil
+# tosutil 二进制不随镜像分发（避免再分发火山引擎的商业软件，参见 README「为什么有这个项目」）。
+# 容器启动时必须以 volume 形式挂到 /usr/local/bin/tosutil，例如：
+#       -v /abs/path/to/linux-tosutil:/usr/local/bin/tosutil:ro
+# 宿主机二进制的架构必须与容器一致（linux/amd64 或 linux/arm64）。
+# 镜像内本身不需要这个文件；只要 PATH 上能找到 tosutil（默认 /usr/local/bin 已在 PATH 上）即可。
 
 # 数据目录：上传缓冲 + 下载落地。建议挂载持久卷到 /data。
 RUN mkdir -p /data/uploads /data/downloads
