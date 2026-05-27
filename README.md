@@ -48,35 +48,48 @@ chmod +x ~/bin/tosutil
 直接拉已经构建好的镜像：
 
 ```bash
-docker run --rm \
-    -p 8080:8080 \
-    -v ~/bin/tosutil:/usr/local/bin/tosutil:ro \
-    -v ~/.tosutilconfig:/root/.tosutilconfig:ro \
-    -v ~/tos-web-data:/data \
-    miofelix/tos-web-gui
+docker run -d \
+  --name tos-web-gui \
+  --restart unless-stopped \
+  -p 41880:8080 \
+  -v "/path/to/tosutil-Linux-<arch>bit:/usr/local/bin/tosutil:ro" \
+  -v "$HOME/.tosutilconfig:/root/.tosutilconfig:ro" \
+  -v "$HOME/tos-web-data:/data" \
+  miofelix/tos-web-gui
 ```
 
-三个挂载分别是：**tosutil 二进制 / 凭证文件 / 数据目录**，缺一不可。
+三个挂载分别是：**tosutil 二进制 / 凭证文件 / 数据目录**，缺一不可。第一个挂载的左侧
+换成你本机实际的 Linux 版 `tosutil` 路径，`<arch>` 按容器架构填 `amd64` 或 `arm64`。
+
+常用运维操作：
+
+```bash
+docker logs -f tos-web-gui     # 跟随日志
+docker stop tos-web-gui        # 停止
+docker rm   tos-web-gui        # 删除容器（镜像保留）
+```
 
 或者本地自己构建：
 
 ```bash
 docker build -t tos-web-gui .
-docker run --rm \
-    -p 8080:8080 \
-    -v ~/bin/tosutil:/usr/local/bin/tosutil:ro \
-    -v ~/.tosutilconfig:/root/.tosutilconfig:ro \
-    -v ~/tos-web-data:/data \
-    tos-web-gui
+docker run -d \
+  --name tos-web-gui \
+  --restart unless-stopped \
+  -p 41880:8080 \
+  -v "/path/to/tosutil-Linux-<arch>bit:/usr/local/bin/tosutil:ro" \
+  -v "$HOME/.tosutilconfig:/root/.tosutilconfig:ro" \
+  -v "$HOME/tos-web-data:/data" \
+  tos-web-gui
 ```
 
-打开 http://localhost:8080 即可。
+打开 http://localhost:41880 即可。
 
 ### 3. 本地开发
 
 ```bash
 uv sync
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 41880
 ```
 
 本地跑要确保 `tosutil` 在 `PATH` 里（或设 `TOSUTIL_BIN=/abs/path/to/tosutil`），
