@@ -10,7 +10,7 @@
 只有官方 `tosutil` 能正常用。** 这通常出现在带特殊策略的子账号或 STS Token 场景下。
 
 本项目就是为了绕开这个限制：把 `tosutil` 包成 HTTP API + 一个简洁的网页前端，让没法用标准 S3
-客户端的同事也能在浏览器里完成上传 / 下载 / 浏览。
+客户端的同事也能在浏览器里完成浏览和目录大小查看。
 
 后端 **FastAPI**，前端是原生 HTML/CSS/JS，所有 TOS 操作都通过 **subprocess** 调用
 `tosutil` 完成 —— **不引入任何 S3 SDK**。
@@ -20,9 +20,7 @@
 - **文件浏览器**：bucket → 子目录，行级 size / 修改时间
 - **导航**：面包屑、后退/前进栈、上级、刷新；快捷键 `Alt+←` / `Alt+→`
 - **目录大小**：目录行的 Size 列显示「计算」链接，点击后后台跑 `tosutil du` 并把结果回填到该列
-- **上传 / 下载进度**：右下任务面板。上传分两段展示「浏览器→服务器」和「服务器→TOS」
-- **删除二次确认**：需键入完整对象名才能点亮「永久删除」
-- **创建目录**：上传 `.keep` 占位
+- **任务面板**：右下任务面板展示后台目录大小任务的状态、日志和结果
 
 ## 快速开始
 
@@ -54,11 +52,10 @@ docker run -d \
   -p 41880:8080 \
   -v "/path/to/tosutil-Linux-<arch>bit:/usr/local/bin/tosutil:ro" \
   -v "$HOME/.tosutilconfig:/root/.tosutilconfig:ro" \
-  -v "$HOME/tos-web-data:/data" \
   miofelix/tos-web-gui
 ```
 
-三个挂载分别是：**tosutil 二进制 / 凭证文件 / 数据目录**，缺一不可。第一个挂载的左侧
+两个挂载分别是：**tosutil 二进制 / 凭证文件**，缺一不可。第一个挂载的左侧
 换成你本机实际的 Linux 版 `tosutil` 路径，`<arch>` 按容器架构填 `amd64` 或 `arm64`。
 
 常用运维操作：
@@ -79,7 +76,6 @@ docker run -d \
   -p 41880:8080 \
   -v "/path/to/tosutil-Linux-<arch>bit:/usr/local/bin/tosutil:ro" \
   -v "$HOME/.tosutilconfig:/root/.tosutilconfig:ro" \
-  -v "$HOME/tos-web-data:/data" \
   tos-web-gui
 ```
 
@@ -93,8 +89,7 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 41880
 ```
 
 本地跑要确保 `tosutil` 在 `PATH` 里（或设 `TOSUTIL_BIN=/abs/path/to/tosutil`），
-且 `~/.tosutilconfig` 已配置。数据目录默认 `/data`，本地可指向别处：
-`export TOS_WEB_DATA_DIR="$PWD/.devdata"`。
+且 `~/.tosutilconfig` 已配置。
 
 ## API
 
@@ -103,12 +98,7 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 41880
 | GET    | `/api/buckets`                 | 列出所有 bucket |
 | GET    | `/api/browse?path=`            | 结构化浏览（空路径返回 bucket 列表） |
 | GET    | `/api/list?path=`              | 原始 `tosutil ls` 输出，调试用 |
-| POST   | `/api/upload?path=`            | multipart 上传，返回 `{task_id}` |
-| POST   | `/api/download/start?path=`    | 启动后台下载任务，返回 `{task_id}` |
-| GET    | `/api/download/{task_id}/file` | 任务完成后流回文件 |
 | POST   | `/api/dirsize?path=`           | 启动后台 `tosutil du`，返回 `{task_id}` |
-| POST   | `/api/delete?path=`            | 删除对象（同步） |
-| POST   | `/api/mkdir?path=`             | 上传 `.keep` 占位（同步） |
 | GET    | `/api/tasks`                   | 列出所有任务 |
 | GET    | `/api/task/{task_id}`          | 单任务状态 |
 | DELETE | `/api/task/{task_id}`          | 运行中则 cancel、终态则 dismiss |
@@ -118,7 +108,6 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 41880
 - 不用 `shell=True`，所有 `tosutil` 调用都是参数数组形式（见 `app/tosutil.py`）。
 - 用户传入的 `path` 经 `validate_tos_path()`：必须以 `tos://` 开头，禁止 `;`、`|`、`&`、
   `$`、反引号、换行、`<`、`>` 等危险字符。
-- 上传文件名做了 `basename` + 去前缀，避免路径穿越。
 - 服务端不打印 AK / SK / Token；`tosutil` 的 stderr 会原样返回给前端便于排错 ——
   **请只在受信任的网络里暴露该服务**。
 - 镜像不含任何凭证；`.tosutilconfig` 通过 volume 挂载，建议加 `:ro`。
@@ -140,8 +129,8 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 41880
 
 **进度条一直是条纹滚动 / 「无法解析 du 输出」**
 - 后端解析不到你这个 `tosutil` 版本的输出格式。功能不受影响，UI 退化展示。
-- 把 `GET /api/task/{id}` 的 `message` 贴过来，调 `app/tosutil.py` 里的
-  `PROGRESS_*_RE` 或 `_DU_*_RE` 正则即可。
+- 把 `GET /api/task/{id}` 的 `message` 贴过来，调 `app/tosutil.py` 里的 `_DU_*_RE`
+  正则即可。
 
 **`uv.lock` 是否要提交？**
 - 推荐提交，构建可复现。没提交时 Dockerfile 会 fallback 到 `uv sync --no-dev`。
@@ -155,7 +144,7 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 41880
 │   ├── tosutil.py         # tosutil subprocess 封装 + 流式解析
 │   ├── tasks.py           # 进程内任务登记表
 │   └── static/
-│       └── index.html     # 前端（文件浏览器 + 任务面板 + 删除模态）
+│       └── index.html     # 前端（文件浏览器 + 任务面板）
 ├── pyproject.toml
 ├── Dockerfile
 ├── LICENSE

@@ -2,7 +2,7 @@
 进程内的任务登记表。
 
 FastAPI 单进程运行，没必要引入 Redis；这里就是一个 dict 加几个小工具。
-所有「上传 / 下载 / 目录大小」这类需要进度反馈的操作都注册成 Task，
+所有「目录大小」这类需要进度反馈的操作都注册成 Task，
 前端通过轮询 /api/tasks 拿状态。
 """
 
@@ -17,9 +17,6 @@ from typing import Any
 
 
 class TaskKind(str, Enum):
-    UPLOAD = "upload"
-    DOWNLOAD = "download"
-    DOWNLOAD_DIR = "download_dir"
     DIRSIZE = "dirsize"
 
 
@@ -42,13 +39,9 @@ class Task:
     name: str                              # 显示名（通常是 basename）
     state: str = TaskState.PENDING.value
     progress: float | None = None          # 0.0 ~ 1.0，未知时 None
-    bytes_done: int | None = None
-    bytes_total: int | None = None
-    speed: str | None = None               # 从 tosutil 输出原样抽取
     message: str | None = None             # 最新一行输出
     error: str | None = None
     result: dict | None = None             # 完成后的结构化结果（dirsize 用）
-    local_path: str | None = None          # download 缓存或 upload 源
     started_at: float = field(default_factory=time.time)
     finished_at: float | None = None
 
@@ -162,13 +155,9 @@ def to_dict(t: Task) -> dict[str, Any]:
         "name": t.name,
         "state": t.state,
         "progress": t.progress,
-        "bytes_done": t.bytes_done,
-        "bytes_total": t.bytes_total,
-        "speed": t.speed,
         "message": t.message,
         "error": t.error,
         "result": t.result,
-        "local_path": t.local_path,
         "started_at": t.started_at,
         "finished_at": t.finished_at,
         "log_tail": t.log_lines[-_LOG_TAIL:],

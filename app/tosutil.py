@@ -10,17 +10,13 @@ from __future__ import annotations
 import asyncio
 import os
 import re
-import shutil
 import subprocess
-import tempfile
-from pathlib import Path
-from typing import Any, Awaitable, Callable, Sequence
+from typing import Any, Callable, Sequence
 
 # tosutil 在镜像内位于 /usr/local/bin/tosutil；本地开发时若已加入 PATH 也能直接调用。
 TOSUTIL_BIN = os.environ.get("TOSUTIL_BIN", "tosutil")
 
-# 单次 tosutil 调用的默认超时（秒），覆盖大多数小文件场景。
-# 大文件上传/下载可以通过环境变量调大。
+# 单次 tosutil 调用的默认超时（秒），较大的目录扫描可以通过环境变量调大。
 DEFAULT_TIMEOUT = int(os.environ.get("TOSUTIL_TIMEOUT", "1800"))
 
 # path 校验里禁止的明显危险字符。即使我们用 shell=False，
@@ -52,15 +48,6 @@ def validate_tos_path(path: str, *, allow_empty: bool = False) -> str:
         if ch in _DANGEROUS_CHARS:
             raise ValueError("path contains invalid character")
     return path
-
-
-def _safe_basename(name: str) -> str:
-    """从用户提供的文件名里去掉目录成分，避免路径穿越。"""
-    base = os.path.basename(name or "")
-    base = base.lstrip("./\\")
-    if not base or base in (".", ".."):
-        raise ValueError("invalid filename")
-    return base
 
 
 def run_tosutil(args: Sequence[str], *, timeout: int | None = None) -> dict:
@@ -349,39 +336,9 @@ def parse_bucket_list(text: str) -> list[dict[str, Any]]:
     return entries
 
 
-def upload_file(local: str, remote: str) -> dict:
-    """把本地文件上传到 tos:// 远端路径。"""
-    validate_tos_path(remote)
-    local_path = Path(local)
-    if not local_path.is_file():
-        raise ValueError(f"local file not found: {local}")
-    return run_tosutil(["cp", str(local_path), remote])
-
-
-def download_file(remote: str, local: str) -> dict:
-    """把 tos:// 远端对象下载到本地路径。"""
-    validate_tos_path(remote)
-    local_path = Path(local)
-    local_path.parent.mkdir(parents=True, exist_ok=True)
-    return run_tosutil(["cp", remote, str(local_path)])
-
-
-def delete_path(path: str) -> dict:
-    """删除某个对象。tosutil rm 对目录需要额外参数，这里只覆盖单对象语义。"""
-    validate_tos_path(path)
-    return run_tosutil(["rm", path])
-
-
 # ---------------------------------------------------------------------------
-# 流式调用 + 进度解析（给 task 模块用）
+# 流式调用（给 task 模块用）
 # ---------------------------------------------------------------------------
-
-# 不同 tosutil 版本输出格式略有差异，下面这些正则都做 best-effort，
-# 匹配不到就让任务进度退化为 indeterminate。
-PROGRESS_PERCENT_RE = re.compile(r"(?<![\d.])(\d{1,3})\s*%")
-PROGRESS_SPEED_RE = re.compile(r"(\d+(?:\.\d+)?\s*(?:KB|MB|GB|TB|B)/s)", re.I)
-PROGRESS_BYTES_RE = re.compile(r"(\d+)\s*/\s*(\d+)\s*(?:B|bytes)?", re.I)
-
 
 async def stream_tosutil(
     args: Sequence[str],
@@ -514,29 +471,6 @@ def parse_du(text: str) -> dict[str, int | None] | None:
     return {"bytes": bytes_total, "objects": objects}
 
 
-# ---------------------------------------------------------------------------
-# 原有同步 API
-# ---------------------------------------------------------------------------
-
-
-def mkdir(path: str) -> dict:
-    """
-    TOS 没有真正的目录，这里通过上传一个空的 .keep 对象来“创建目录”。
-    """
-    validate_tos_path(path)
-    folder = path if path.endswith("/") else path + "/"
-    keep_remote = folder + ".keep"
-
-    # 用临时空文件做占位；用完即删，避免污染 /tmp。
-    tmp_dir = tempfile.mkdtemp(prefix="tos-mkdir-")
-    keep_local = Path(tmp_dir) / ".keep"
-    try:
-        keep_local.touch()
-        return run_tosutil(["cp", str(keep_local), keep_remote])
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-
-
 __all__ = [
     "TosutilError",
     "validate_tos_path",
@@ -548,12 +482,4 @@ __all__ = [
     "parse_listing",
     "parse_bucket_list",
     "parse_du",
-    "PROGRESS_PERCENT_RE",
-    "PROGRESS_SPEED_RE",
-    "PROGRESS_BYTES_RE",
-    "upload_file",
-    "download_file",
-    "delete_path",
-    "mkdir",
-    "_safe_basename",
 ]

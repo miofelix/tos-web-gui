@@ -37,9 +37,6 @@ COPY app ./app
 # 宿主机二进制的架构必须与容器一致（linux/amd64 或 linux/arm64）。
 # 镜像内本身不需要这个文件；只要 PATH 上能找到 tosutil（默认 /usr/local/bin 已在 PATH 上）即可。
 
-# 数据目录：上传缓冲 + 下载落地。建议挂载持久卷到 /data。
-RUN mkdir -p /data/uploads /data/downloads
-
 EXPOSE 8080
 
 CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

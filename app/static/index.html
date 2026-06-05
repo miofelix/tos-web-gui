@@ -165,16 +165,18 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    td.name a {
+    td.name .entry {
       color: var(--fg);
       text-decoration: none;
       display: inline-flex;
       align-items: center;
       gap: 8px;
+    }
+    td.name a.entry {
       cursor: pointer;
     }
-    td.name a:hover { color: var(--accent); }
-    td.name a.dir { font-weight: 500; }
+    td.name a.entry:hover { color: var(--accent); }
+    td.name .entry.dir { font-weight: 500; }
     td.size, td.mtime {
       color: var(--muted);
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -186,11 +188,6 @@
       font-family: inherit;
     }
     td.size .size-calc:hover { text-decoration: underline; }
-    td.actions {
-      text-align: right;
-    }
-    td.actions button { margin-left: 4px; }
-
     .empty {
       padding: 32px;
       text-align: center;
@@ -375,53 +372,6 @@
       color: #ff7b72;
     }
 
-    /* ----- 删除模态 ----- */
-    dialog#delete-modal {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 20px 22px;
-      width: min(440px, 92vw);
-      background: var(--card);
-      box-shadow: 0 12px 36px rgba(0,0,0,.18);
-    }
-    dialog#delete-modal::backdrop {
-      background: rgba(0,0,0,.32);
-    }
-    dialog#delete-modal h3 {
-      margin: 0 0 12px;
-      font-size: 15px;
-      color: var(--danger);
-    }
-    dialog#delete-modal p {
-      margin: 6px 0;
-      font-size: 13px;
-      color: var(--fg);
-    }
-    dialog#delete-modal code {
-      display: block;
-      background: var(--danger-bg);
-      color: var(--danger);
-      padding: 8px 10px;
-      border-radius: 6px;
-      font-size: 12px;
-      margin: 6px 0 10px;
-      word-break: break-all;
-      white-space: pre-wrap;
-    }
-    dialog#delete-modal input {
-      width: 100%;
-      padding: 6px 10px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-size: 13px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      margin-bottom: 12px;
-    }
-    .modal-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-    }
   </style>
 </head>
 <body>
@@ -439,9 +389,6 @@
     </div>
     <div class="row">
       <div id="crumbs" class="crumbs grow"></div>
-      <label class="btn" for="upload-file" title="上传到当前目录">⬆ Upload</label>
-      <input id="upload-file" type="file" class="hidden" />
-      <button id="btn-mkdir" title="在当前目录创建子目录">+ New Folder</button>
     </div>
   </header>
 
@@ -453,9 +400,8 @@
         <thead>
           <tr>
             <th style="width:55%">Name</th>
-            <th style="width:18%">Size</th>
-            <th style="width:22%">Modified</th>
-            <th style="width:5%; text-align:right">Actions</th>
+            <th style="width:20%">Size</th>
+            <th style="width:25%">Modified</th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -471,18 +417,6 @@
 
   <div id="task-panel"></div>
 
-  <dialog id="delete-modal">
-    <h3>永久删除</h3>
-    <p>下列对象将被<strong>不可恢复</strong>地删除：</p>
-    <code id="delete-target"></code>
-    <p>请键入 <strong id="delete-name"></strong> 以确认：</p>
-    <input id="delete-input" autocomplete="off" autocapitalize="off" spellcheck="false" />
-    <div class="modal-actions">
-      <button id="delete-cancel" value="cancel" title="关闭弹窗，不删除 (Esc)">取消</button>
-      <button id="delete-confirm" class="danger" disabled title="不可恢复地删除该对象 (Enter)">永久删除</button>
-    </div>
-  </dialog>
-
   <script>
     // =================================================================
     // 状态
@@ -496,14 +430,6 @@
       tasks: new Map(),
       // dirsize 任务 -> 它对应的目录 path（用来把结果写回行）
       pendingDirSize: new Map(),
-      // 已经触发过浏览器原生下载弹窗的 task_id，避免重复触发
-      downloadTriggered: new Set(),
-      // 已经因为某个 upload 完成而刷新过当前目录的 task_id
-      uploadRefreshed: new Set(),
-      // 浏览器→服务器 阶段的本地上传卡片：local_id -> {name, loaded, total, xhr}
-      localUploads: new Map(),
-      // 待删除条目
-      pendingDelete: null,
     };
 
     const $ = (id) => document.getElementById(id);
@@ -726,22 +652,20 @@
         // Name
         const tdName = document.createElement("td");
         tdName.className = "name";
-        const a = document.createElement("a");
-        a.title = e.path;
-        a.classList.add(e.is_dir ? "dir" : "file");
-        a.innerHTML = (e.is_dir ? "📁 " : "📄 ") + escapeHtml(e.name) + (e.is_dir ? "/" : "");
+        const nameEl = document.createElement(e.is_dir ? "a" : "span");
+        nameEl.title = e.path;
+        nameEl.classList.add("entry", e.is_dir ? "dir" : "file");
+        nameEl.innerHTML = (e.is_dir ? "📁 " : "📄 ") + escapeHtml(e.name) + (e.is_dir ? "/" : "");
         if (e.is_dir) {
-          a.addEventListener("click", () => go(e.path));
-        } else {
-          a.addEventListener("click", () => startDownload(e));
+          nameEl.addEventListener("click", () => go(e.path));
         }
-        tdName.appendChild(a);
+        tdName.appendChild(nameEl);
 
         // Size
         const tdSize = document.createElement("td");
         tdSize.className = "size";
         if (e.is_dir) {
-          // 目录：Size 列本身就是「点我计算」的触发器，避免 Actions 列额外按钮
+          // 目录：Size 列本身就是「点我计算」的触发器
           const calc = document.createElement("a");
           calc.className = "size-calc";
           calc.textContent = "计算";
@@ -757,43 +681,16 @@
         tdMtime.className = "mtime";
         tdMtime.textContent = e.mtime || "—";
 
-        // Actions
-        const tdActions = document.createElement("td");
-        tdActions.className = "actions";
-
-        const dl = document.createElement("button");
-        dl.className = "ghost";
-        if (e.is_dir) {
-          dl.title = "递归下载该目录到服务端 /data/downloads/";
-        } else {
-          dl.title = "下载";
-        }
-        dl.textContent = "⬇";
-        dl.addEventListener("click", (ev) => {
-          ev.stopPropagation();
-          if (e.is_dir) startDownloadDir(e);
-          else          startDownload(e);
-        });
-        tdActions.appendChild(dl);
-
-        const del = document.createElement("button");
-        del.className = "danger";
-        del.title = "删除";
-        del.textContent = "🗑";
-        del.addEventListener("click", (ev) => { ev.stopPropagation(); askDelete(e); });
-        tdActions.appendChild(del);
-
         tr.appendChild(tdName);
         tr.appendChild(tdSize);
         tr.appendChild(tdMtime);
-        tr.appendChild(tdActions);
         frag.appendChild(tr);
       }
       tbody.appendChild(frag);
     }
 
     // =================================================================
-    // 行内操作：dirsize / download / delete
+    // 行内操作：dirsize
     // =================================================================
     async function startDirSize(entry, rowEl) {
       const data = await callJson("POST", "/api/dirsize?path=" + encodeURIComponent(entry.path));
@@ -825,146 +722,6 @@
       }
     }
 
-    async function startDownload(entry) {
-      const data = await callJson("POST", "/api/download/start?path=" + encodeURIComponent(entry.path));
-      if (data.success === false || !data.task_id) {
-        showStatus("err", data.error || "无法启动下载");
-      }
-      // 进度与触发下载都由任务面板轮询接管
-    }
-
-    async function startDownloadDir(entry) {
-      const data = await callJson("POST", "/api/download_dir/start?path=" + encodeURIComponent(entry.path));
-      if (data.success === false || !data.task_id) {
-        showStatus("err", data.error || "无法启动目录下载");
-        return;
-      }
-      // 立刻给个 info，免得用户以为没反应（后台 tosutil cp -r 可能要一会儿才出 log）
-      showStatus("info", `开始递归下载 ${entry.path} 到服务端 /data/downloads/${entry.name}/`);
-    }
-
-    function triggerBrowserDownload(taskId, name) {
-      if (state.downloadTriggered.has(taskId)) return;
-      state.downloadTriggered.add(taskId);
-      const url = `/api/download/${encodeURIComponent(taskId)}/file`;
-      const a = document.createElement("a");
-      a.href = url;
-      a.rel = "noopener";
-      if (name) a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    }
-
-    function askDelete(entry) {
-      state.pendingDelete = entry;
-      const expected = entry.is_dir ? entry.name + "/" : entry.name;
-      $("delete-target").textContent = entry.path;
-      $("delete-name").textContent = expected;
-      $("delete-input").value = "";
-      $("delete-confirm").disabled = true;
-      $("delete-modal").showModal();
-      setTimeout(() => $("delete-input").focus(), 0);
-    }
-
-    async function confirmDelete() {
-      const entry = state.pendingDelete;
-      if (!entry) return;
-      $("delete-modal").close();
-      state.pendingDelete = null;
-      const data = await callJson("POST", "/api/delete?path=" + encodeURIComponent(entry.path));
-      setRaw(data);
-      if (data.success === false) {
-        showStatus("err", data.error || "删除失败");
-        return;
-      }
-      await doNavigate(state.path);
-    }
-
-    function cancelDelete() {
-      $("delete-modal").close();
-      state.pendingDelete = null;
-    }
-
-    // =================================================================
-    // 新建目录
-    // =================================================================
-    async function mkdir() {
-      if (!state.path) {
-        showStatus("err", "请先进入某个 bucket / 目录，再创建子目录");
-        return;
-      }
-      const name = prompt("新建子目录名（不要带 /）：");
-      if (!name) return;
-      if (name.includes("/")) {
-        showStatus("err", "目录名不能包含 /");
-        return;
-      }
-      const target = state.path + name + "/";
-      const data = await callJson("POST", "/api/mkdir?path=" + encodeURIComponent(target));
-      setRaw(data);
-      if (data.success === false) {
-        showStatus("err", data.error || "创建失败");
-        return;
-      }
-      await doNavigate(state.path);
-    }
-
-    // =================================================================
-    // 上传：XHR + 浏览器→服务器进度
-    // =================================================================
-    function uploadFile(file) {
-      if (!state.path) {
-        showStatus("err", "请先进入某个 bucket / 目录再上传");
-        return;
-      }
-      const localId = "local-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6);
-      state.localUploads.set(localId, {
-        name: file.name,
-        loaded: 0,
-        total: file.size,
-        phase: "browser",
-      });
-      renderTaskPanel();
-
-      const xhr = new XMLHttpRequest();
-      state.localUploads.get(localId).xhr = xhr;
-
-      xhr.upload.onprogress = (e) => {
-        const obj = state.localUploads.get(localId);
-        if (!obj || !e.lengthComputable) return;
-        obj.loaded = e.loaded;
-        obj.total = e.total;
-        renderTaskPanel();
-      };
-      xhr.onload = () => {
-        state.localUploads.delete(localId);
-        let data;
-        try { data = JSON.parse(xhr.responseText); }
-        catch { data = { success: false, error: "non-JSON response" }; }
-        if (data.success === false) {
-          showStatus("err", data.error || data.detail || "上传请求失败");
-        }
-        // 之后由 /api/tasks 轮询接管「服务器→TOS」阶段
-        renderTaskPanel();
-      };
-      xhr.onerror = () => {
-        state.localUploads.delete(localId);
-        showStatus("err", "上传网络错误");
-        renderTaskPanel();
-      };
-      xhr.onabort = () => {
-        state.localUploads.delete(localId);
-        renderTaskPanel();
-      };
-
-      const fd = new FormData();
-      fd.append("file", file);
-      xhr.open("POST", "/api/upload?path=" + encodeURIComponent(state.path));
-      xhr.send(fd);
-    }
-
-    // =================================================================
     // 任务面板（轮询 /api/tasks）
     // =================================================================
     const TASK_POLL_MS = 700;
@@ -989,17 +746,6 @@
       if (task.state === "done") {
         if (task.kind === "dirsize") {
           applyDirSizeResult(task.id, task);
-        } else if (task.kind === "download") {
-          triggerBrowserDownload(task.id, task.name);
-        } else if (task.kind === "download_dir") {
-          // 目录下载不打包不弹浏览器下载，只在状态条提示落地位置
-          showStatus("info", `目录已下载到服务端 ${task.local_path || "/data/downloads/"}`);
-        } else if (task.kind === "upload") {
-          if (!state.uploadRefreshed.has(task.id)) {
-            state.uploadRefreshed.add(task.id);
-            // 异步刷新，不阻塞轮询
-            doNavigate(state.path);
-          }
         }
       } else if (task.state === "error") {
         if (task.kind === "dirsize") {
@@ -1043,11 +789,6 @@
       panel.innerHTML = "";
       const now = Date.now() / 1000;
 
-      // 本地（浏览器→服务器）上传卡片
-      for (const [id, obj] of state.localUploads) {
-        panel.appendChild(renderLocalUploadCard(id, obj));
-      }
-
       // 后端任务，按 started_at 倒序
       const all = Array.from(state.tasks.values());
       all.sort((a, b) => (b.started_at || 0) - (a.started_at || 0));
@@ -1075,7 +816,7 @@
     }
 
     function kindIcon(kind) {
-      return { upload: "⬆", download: "⬇", download_dir: "📥", dirsize: "📐" }[kind] || "•";
+      return { dirsize: "📐" }[kind] || "•";
     }
 
     function renderBackendTaskCard(task) {
@@ -1117,18 +858,13 @@
       meta.className = "task-meta";
       const leftBits = [];
       if (task.progress != null) leftBits.push((task.progress * 100).toFixed(0) + "%");
-      if (task.bytes_done != null && task.bytes_total != null) {
-        leftBits.push(fmtSize(task.bytes_done) + " / " + fmtSize(task.bytes_total));
-      }
       if (task.kind === "dirsize" && task.state === "done" && task.result) {
         leftBits.push(fmtSize(task.result.bytes) + (task.result.objects != null ? ` · ${task.result.objects}` : ""));
       }
       const left = document.createElement("span");
       left.textContent = leftBits.join("  ");
       const right = document.createElement("span");
-      if (task.speed) {
-        right.textContent = task.speed;
-      } else if (task.state === "error" && task.error) {
+      if (task.state === "error" && task.error) {
         right.className = "err";
         right.title = task.error;
         right.textContent = task.error;
@@ -1166,46 +902,6 @@
       return pre;
     }
 
-    function renderLocalUploadCard(id, obj) {
-      const card = document.createElement("div");
-      card.className = "task-card";
-
-      const head = document.createElement("div");
-      head.className = "task-head";
-      head.innerHTML =
-        `<span class="task-kind">⬆</span>` +
-        `<span class="task-name">${escapeHtml(obj.name)} → 服务器</span>` +
-        `<span class="task-state running">uploading</span>`;
-      const close = document.createElement("button");
-      close.className = "task-close";
-      close.title = "中止";
-      close.textContent = "✕";
-      close.addEventListener("click", () => {
-        try { obj.xhr && obj.xhr.abort(); } catch { /* ignore */ }
-        state.localUploads.delete(id);
-        renderTaskPanel();
-      });
-      head.appendChild(close);
-
-      const bar = document.createElement("div");
-      bar.className = "task-bar";
-      const fill = document.createElement("div");
-      const pct = obj.total > 0 ? (obj.loaded / obj.total) : 0;
-      fill.style.width = (pct * 100).toFixed(1) + "%";
-      bar.appendChild(fill);
-
-      const meta = document.createElement("div");
-      meta.className = "task-meta";
-      meta.innerHTML =
-        `<span>${(pct * 100).toFixed(0)}%  ${fmtSize(obj.loaded)} / ${fmtSize(obj.total)}</span>` +
-        `<span>浏览器 → 服务器</span>`;
-
-      card.appendChild(head);
-      card.appendChild(bar);
-      card.appendChild(meta);
-      return card;
-    }
-
     // =================================================================
     // 绑定
     // =================================================================
@@ -1219,26 +915,6 @@
     $("addr").addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") go($("addr").value.trim());
     });
-    $("btn-mkdir").addEventListener("click", () => mkdir());
-    $("upload-file").addEventListener("change", (ev) => {
-      const f = ev.target.files[0];
-      if (f) uploadFile(f);
-      ev.target.value = "";
-    });
-
-    // 删除模态
-    $("delete-input").addEventListener("input", () => {
-      const entry = state.pendingDelete;
-      if (!entry) return;
-      const expected = entry.is_dir ? entry.name + "/" : entry.name;
-      $("delete-confirm").disabled = $("delete-input").value !== expected;
-    });
-    $("delete-input").addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter" && !$("delete-confirm").disabled) confirmDelete();
-    });
-    $("delete-confirm").addEventListener("click", confirmDelete);
-    $("delete-cancel").addEventListener("click", cancelDelete);
-    $("delete-modal").addEventListener("close", () => { state.pendingDelete = null; });
 
     // 键盘快捷键：Alt+← / Alt+→（覆盖浏览器自带的 history 后退/前进）
     document.addEventListener("keydown", (ev) => {
