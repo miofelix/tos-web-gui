@@ -19,6 +19,7 @@ WORKDIR /app
 # 先复制依赖描述，最大化利用 docker layer cache。
 # uv.loc[k] 是一个字符类 glob，对应 "uv.lock"，但即使文件不存在也不会让 COPY 失败。
 COPY pyproject.toml ./
+COPY README.md LICENSE ./
 COPY uv.loc[k] ./
 
 # 有 lockfile 走 --frozen，没有就让 uv 现场解析。
@@ -31,7 +32,7 @@ RUN if [ -f uv.lock ]; then \
 # 项目代码。
 COPY app ./app
 
-# tosutil 二进制不随镜像分发（避免再分发火山引擎的商业软件，参见 README「为什么有这个项目」）。
+# tosutil 二进制不随镜像分发；获取方式参见 README「适用场景」和「快速开始」。
 # 容器启动时必须以 volume 形式挂到 /usr/local/bin/tosutil；本地运行配置见 compose.yaml。
 # 宿主机二进制的架构必须与容器一致（linux/amd64 或 linux/arm64）。
 # 镜像内本身不需要这个文件；只要 PATH 上能找到 tosutil（默认 /usr/local/bin 已在 PATH 上）即可。
