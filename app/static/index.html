@@ -188,6 +188,12 @@
       font-family: inherit;
     }
     td.size .size-calc:hover { text-decoration: underline; }
+    td.actions {
+      text-align: right;
+    }
+    td.actions button {
+      margin-left: 4px;
+    }
     .empty {
       padding: 32px;
       text-align: center;
@@ -400,8 +406,9 @@
         <thead>
           <tr>
             <th style="width:55%">Name</th>
-            <th style="width:20%">Size</th>
-            <th style="width:25%">Modified</th>
+            <th style="width:18%">Size</th>
+            <th style="width:22%">Modified</th>
+            <th style="width:5%; text-align:right">Copy</th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -681,17 +688,64 @@
         tdMtime.className = "mtime";
         tdMtime.textContent = e.mtime || "—";
 
+        // Copy path
+        const tdActions = document.createElement("td");
+        tdActions.className = "actions";
+        const copy = document.createElement("button");
+        copy.className = "ghost";
+        copy.title = "复制完整路径";
+        copy.textContent = "⧉";
+        copy.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          copyPath(e.path);
+        });
+        tdActions.appendChild(copy);
+
         tr.appendChild(tdName);
         tr.appendChild(tdSize);
         tr.appendChild(tdMtime);
+        tr.appendChild(tdActions);
         frag.appendChild(tr);
       }
       tbody.appendChild(frag);
     }
 
     // =================================================================
-    // 行内操作：dirsize
+    // 行内操作：copy / dirsize
     // =================================================================
+    function fallbackCopyPath(path) {
+      const ta = document.createElement("textarea");
+      ta.value = path;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        const ok = document.execCommand("copy");
+        if (!ok) throw new Error("execCommand copy failed");
+      } finally {
+        ta.remove();
+      }
+    }
+
+    async function copyPath(path) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          try {
+            await navigator.clipboard.writeText(path);
+          } catch {
+            fallbackCopyPath(path);
+          }
+        } else {
+          fallbackCopyPath(path);
+        }
+        showStatus("info", `已复制路径：${path}`);
+      } catch (err) {
+        showStatus("err", `复制失败：${err && err.message ? err.message : err}`);
+      }
+    }
+
     async function startDirSize(entry, rowEl) {
       const data = await callJson("POST", "/api/dirsize?path=" + encodeURIComponent(entry.path));
       if (data.success === false || !data.task_id) {
