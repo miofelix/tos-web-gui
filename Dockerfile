@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-# 让 Python 输出立刻刷新到 stdout，方便 docker logs 实时查看。
+# 让 Python 输出立刻刷新到 stdout，方便实时查看容器日志。
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -32,8 +32,7 @@ RUN if [ -f uv.lock ]; then \
 COPY app ./app
 
 # tosutil 二进制不随镜像分发（避免再分发火山引擎的商业软件，参见 README「为什么有这个项目」）。
-# 容器启动时必须以 volume 形式挂到 /usr/local/bin/tosutil，例如：
-#       -v /abs/path/to/linux-tosutil:/usr/local/bin/tosutil:ro
+# 容器启动时必须以 volume 形式挂到 /usr/local/bin/tosutil；本地运行配置见 compose.yaml。
 # 宿主机二进制的架构必须与容器一致（linux/amd64 或 linux/arm64）。
 # 镜像内本身不需要这个文件；只要 PATH 上能找到 tosutil（默认 /usr/local/bin 已在 PATH 上）即可。
 

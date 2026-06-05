@@ -1,0 +1,22 @@
+services:
+  tos-web-gui:
+    build:
+      context: .
+    image: tos-web-gui:local
+    container_name: tos-web-gui
+    restart: unless-stopped
+    ports:
+      - "${TOS_WEB_PORT:-41880}:8080"
+    volumes:
+      - "${TOSUTIL_HOST_BIN:?set TOSUTIL_HOST_BIN in .env}:/usr/local/bin/tosutil:ro"
+      - "${TOSUTIL_CONFIG_HOST_PATH:?set TOSUTIL_CONFIG_HOST_PATH in .env}:/root/.tosutilconfig:ro"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).read()"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
