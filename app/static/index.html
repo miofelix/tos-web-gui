@@ -313,6 +313,7 @@
       align-items: center;
       min-width: 0;
       max-width: 100%;
+      min-height: 0;
       gap: 6px;
       padding: 6px 10px;
       border: 1px solid rgba(15, 23, 42, 0.08);
@@ -324,6 +325,17 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    button.chip {
+      cursor: pointer;
+      justify-content: center;
+      transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+    }
+    button.chip:hover {
+      background: rgba(37, 99, 235, 0.06);
+      border-color: rgba(37, 99, 235, 0.12);
+      color: var(--accent-strong);
+      transform: none;
+    }
     .chip.highlight {
       color: var(--accent-strong);
       border-color: rgba(37, 99, 235, 0.18);
@@ -333,7 +345,7 @@
     .workspace {
       display: grid;
       gap: 14px;
-      padding: 14px 0 300px;
+      padding: 14px 0 18px;
     }
     .browser {
       display: grid;
@@ -617,16 +629,28 @@
 
     .task-dock {
       position: fixed;
-      right: 16px;
-      bottom: 16px;
-      width: 520px;
-      max-width: calc(100vw - 32px);
+      right: 12px;
+      bottom: 12px;
+      width: min(440px, calc(100vw - 24px));
+      max-width: calc(100vw - 24px);
       z-index: 1000;
       background: #fff;
       border: 1px solid var(--line);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       overflow: hidden;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(12px) scale(0.98);
+      transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+    }
+    .task-dock.is-open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+      transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s;
     }
     .task-dock-head {
       display: flex;
@@ -678,10 +702,6 @@
       text-align: center;
       font-size: 12px;
     }
-    .task-dock.is-collapsed .task-list {
-      display: none;
-    }
-
     .task-card {
       background: #fff;
       border: 1px solid rgba(15, 23, 42, 0.08);
@@ -834,9 +854,6 @@
         bottom: 8px;
         width: calc(100vw - 16px);
       }
-      .workspace {
-        padding-bottom: 260px;
-      }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -888,7 +905,7 @@
           <span class="chip" id="chip-location">ROOT</span>
           <span class="chip" id="chip-count">0/0 项</span>
           <span class="chip" id="chip-filter">全部</span>
-          <span class="chip" id="chip-task">0 任务</span>
+          <button class="chip" id="chip-task" type="button" aria-controls="task-panel" aria-pressed="false">0 任务</button>
         </div>
         <div class="view-tools">
           <div class="field" style="flex: 1; min-width: 0;">
@@ -943,7 +960,7 @@
 
   <div id="status" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <aside id="task-panel" class="task-dock">
+  <aside id="task-panel" class="task-dock" aria-hidden="true">
     <div class="task-dock-head">
       <div class="task-dock-title">
         <span class="task-dot"></span>
@@ -969,7 +986,7 @@
       sort: "name-asc",
       selectedPath: "",
       navSeq: 0,
-      taskPanelCollapsed: false,
+      taskPanelCollapsed: true,
     };
 
     const HOME_KEY = "tosWebGui.home";
@@ -1109,9 +1126,11 @@
 
     function getTaskPanelCollapsed() {
       try {
-        return localStorage.getItem(TASK_PANEL_KEY) === "1";
+        const raw = localStorage.getItem(TASK_PANEL_KEY);
+        if (raw === null) return true;
+        return raw === "1";
       } catch {
-        return false;
+        return true;
       }
     }
 
@@ -1199,10 +1218,14 @@
     }
 
     function syncTaskPanelState() {
-      el.taskPanel.classList.toggle("is-collapsed", state.taskPanelCollapsed);
-      el.btnTaskToggle.textContent = state.taskPanelCollapsed ? "▸" : "▾";
-      el.btnTaskToggle.title = state.taskPanelCollapsed ? "展开任务面板" : "折叠任务面板";
-      el.btnTaskToggle.setAttribute("aria-expanded", String(!state.taskPanelCollapsed));
+      const open = !state.taskPanelCollapsed;
+      el.taskPanel.classList.toggle("is-open", open);
+      el.taskPanel.setAttribute("aria-hidden", String(!open));
+      el.btnTaskToggle.textContent = open ? "▾" : "▸";
+      el.btnTaskToggle.title = open ? "折叠任务面板" : "展开任务面板";
+      el.btnTaskToggle.setAttribute("aria-expanded", String(open));
+      el.chipTask.setAttribute("aria-pressed", String(open));
+      el.chipTask.title = open ? "隐藏任务面板" : "显示任务面板";
     }
 
     function syncToolbarState() {
@@ -1254,6 +1277,7 @@
       el.chipFilter.classList.toggle("highlight", !!filterText);
       el.chipTask.textContent = `${taskCount} 任务`;
       el.chipTask.title = `${taskCount} 个任务`;
+      el.chipTask.classList.toggle("highlight", taskCount > 0);
       el.taskCount.textContent = String(taskCount);
       el.browserMeta.textContent = state.loading
         ? "加载中"
@@ -2116,6 +2140,9 @@
         renderView();
       });
       el.btnTaskToggle.addEventListener("click", () => {
+        setTaskPanelCollapsed(!state.taskPanelCollapsed);
+      });
+      el.chipTask.addEventListener("click", () => {
         setTaskPanelCollapsed(!state.taskPanelCollapsed);
       });
 
