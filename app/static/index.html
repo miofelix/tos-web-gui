@@ -201,10 +201,17 @@
       font-size: 13px;
     }
     .status {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1200;
+      max-width: calc(100vw - 32px);
       padding: 8px 12px;
       border-radius: 6px;
       font-size: 13px;
-      margin-bottom: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.12);
+      pointer-events: none;
     }
     .status.err {
       background: var(--danger-bg);
@@ -399,7 +406,7 @@
   </header>
 
   <main>
-    <div id="status" class="hidden"></div>
+    <div id="status" class="hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <div class="table-wrap">
       <table>
@@ -440,6 +447,7 @@
     };
 
     const $ = (id) => document.getElementById(id);
+    let statusTimer = null;
 
     // =================================================================
     // 工具
@@ -483,11 +491,24 @@
 
     function showStatus(kind, text) {
       const el = $("status");
+      if (statusTimer) {
+        clearTimeout(statusTimer);
+        statusTimer = null;
+      }
       el.className = "status " + kind;
       el.textContent = text;
       el.classList.remove("hidden");
+      if (kind === "info") {
+        statusTimer = setTimeout(() => {
+          clearStatus();
+        }, 1800);
+      }
     }
     function clearStatus() {
+      if (statusTimer) {
+        clearTimeout(statusTimer);
+        statusTimer = null;
+      }
       $("status").classList.add("hidden");
       $("status").textContent = "";
     }
