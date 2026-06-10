@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="app/static/app-icon.png" alt="TOS Web GUI 图标" width="112" height="112">
+</p>
+
 # TOS Web GUI
 
 > Browser-based GUI for Volcengine TOS. Wraps the official `tosutil` binary over HTTP — built for credentials that no S3-compatible client (Cyberduck, rclone, boto3) can use.

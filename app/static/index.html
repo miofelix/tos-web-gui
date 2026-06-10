@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <title>TOS Web GUI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="/static/favicon.ico" sizes="64x64" />
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
   <style>
     :root {
       --bg: #f5f7fb;
@@ -75,17 +77,11 @@
     }
     .brand-mark {
       flex: 0 0 auto;
-      min-width: 40px;
+      width: 40px;
       height: 40px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
       border-radius: var(--radius);
-      background: var(--accent-soft);
-      color: var(--accent-strong);
       border: 1px solid rgba(37, 99, 235, 0.12);
-      font-weight: 700;
-      letter-spacing: 0.02em;
+      object-fit: cover;
     }
     .brand-copy {
       min-width: 0;
@@ -873,7 +869,7 @@
     <header class="chrome">
       <div class="chrome-top">
         <div class="brand">
-          <div class="brand-mark">TOS</div>
+          <img class="brand-mark" src="/static/app-icon.png" alt="" width="40" height="40" />
           <div class="brand-copy">
             <h1>TOS Web GUI</h1>
             <p>via tosutil</p>
